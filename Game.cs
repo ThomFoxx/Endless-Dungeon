@@ -113,14 +113,11 @@ public class Game
 
     private void RunDungeonTest()
     {
-        DungeonGenerator generator = new();
+        const int testExplorerSeed = 12345;
 
-        const int testSeed = 98765;
+        DungeonRun dungeon = new(testExplorerSeed);
 
-        DungeonFloor floor = generator.GenerateFloor(
-            20,
-            20,
-            testSeed);
+        DungeonFloor floor = dungeon.GetCurrentFloor();
 
         int playerX = floor.StartX;
         int playerY = floor.StartY;
@@ -162,6 +159,30 @@ public class Game
                 case ConsoleKey.RightArrow:
                     moveX = 1;
                     break;
+
+                case ConsoleKey.E:
+                    Tile currentTile = floor.GetTile(
+                        playerX,
+                        playerY);
+
+                    if (currentTile.Type == TileType.StairsDown)
+                    {
+                        floor = dungeon.Descend();
+
+                        playerX = floor.StairsUpX;
+                        playerY = floor.StairsUpY;
+                    }
+                    else if (
+                        currentTile.Type == TileType.StairsUp &&
+                        dungeon.CurrentFloorNumber > 1)
+                    {
+                        floor = dungeon.Ascend();
+
+                        playerX = floor.StairsDownX;
+                        playerY = floor.StairsDownY;
+                    }
+
+                    continue;
 
                 case ConsoleKey.Escape:
                     isExploring = false;

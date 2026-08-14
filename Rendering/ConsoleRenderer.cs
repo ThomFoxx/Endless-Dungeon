@@ -37,6 +37,9 @@ public class ConsoleRenderer
     {
         Console.SetCursorPosition(0, 0);
 
+        Console.WriteLine($"Dungeon Floor {floor.FloorNumber}  |  Seed: {floor.Seed}");
+        Console.WriteLine();
+
         for (int y = 0; y < floor.Height; y++)
         {
             for (int x = 0; x < floor.Width; x++)
@@ -62,6 +65,16 @@ public class ConsoleRenderer
                         Console.Write('·');
                         break;
 
+                    case TileType.StairsUp:
+                        Console.ForegroundColor = ConsoleColor.White;
+                        Console.Write('▲'); // U+25B2
+                        break;
+
+                    case TileType.StairsDown:
+                        Console.ForegroundColor = ConsoleColor.White;
+                        Console.Write('▼'); // U+25BC
+                        break;
+
                     default:
                         Console.Write(' ');
                         break;
@@ -75,154 +88,172 @@ public class ConsoleRenderer
 
         Console.WriteLine();
         Console.WriteLine("WASD / Arrow Keys - Move");
+        Console.WriteLine("E - Use Stairs");
         Console.WriteLine("Escape - Return to test camp");
     }
 
-    private char GetWallCharacter(DungeonFloor floor, int x, int y)
+    private char GetWallCharacter(
+    DungeonFloor floor,
+    int x,
+    int y)
     {
-        // Check for open dungeon space around this wall.
-        bool north = IsOpenSpace(floor, x, y - 1);
-        bool south = IsOpenSpace(floor, x, y + 1);
-        bool east = IsOpenSpace(floor, x + 1, y);
-        bool west = IsOpenSpace(floor, x - 1, y);
+        bool north = HasNorthWallConnection(floor, x, y);
+        bool south = HasSouthWallConnection(floor, x, y);
+        bool east = HasEastWallConnection(floor, x, y);
+        bool west = HasWestWallConnection(floor, x, y);
 
-        int cardinalCount =
-            (north ? 1 : 0) +
-            (south ? 1 : 0) +
-            (east ? 1 : 0) +
-            (west ? 1 : 0);
-
-        // A solid tile almost surrounded by floor is better
-        // represented as a pillar than a misleading wall junction.
-        if (cardinalCount >= 3)
+        return (north, south, east, west) switch
         {
-            return '█';
-        }
+            // Four-way junction
+            (true, true, true, true) => '┼',
 
-        // Floor on opposite sides means this wall separates
-        // two nearby open areas.
-        if (north && south)
-        {
-            return '─';
-        }
+            // Three-way junctions
+            (true, true, true, false) => '├',
+            (true, true, false, true) => '┤',
+            (true, false, true, true) => '┴',
+            (false, true, true, true) => '┬',
 
-        if (east && west)
-        {
-            return '│';
-        }
+            // Straight walls
+            (true, true, false, false) => '│',
+            (false, false, true, true) => '─',
 
-        // Concave corners.
-        if (north && east)
-        {
-            return '┐';
-        }
+            // Corners
+            (false, true, true, false) => '┌',
+            (false, true, false, true) => '┐',
+            (true, false, true, false) => '└',
+            (true, false, false, true) => '┘',
 
-        if (north && west)
-        {
-            return '┌';
-        }
+            // Wall ends
+            (true, false, false, false) => '│',
+            (false, true, false, false) => '│',
+            (false, false, true, false) => '─',
+            (false, false, false, true) => '─',
 
-        if (south && east)
-        {
-            return '┘';
-        }
-
-        if (south && west)
-        {
-            return '└';
-        }
-
-        // Normal straight room/corridor walls.
-        if (north || south)
-        {
-            return '─';
-        }
-
-        if (east || west)
-        {
-            return '│';
-        }
-
-        // No cardinal floor means this may be an outer corner.
-        return GetDiagonalWallCharacter(
-            floor,
-            x,
-            y);
+            // Unusual isolated geometry
+            _ => GetIsolatedWallCharacter(floor, x, y)
+        };
     }
 
-    private char GetDiagonalWallCharacter(
+    private bool HasNorthWallConnection(
+    DungeonFloor floor,
+    int x,
+    int y)
+    {
+        if (!IsWall(floor, x, y - 1))
+        {
+            return false;
+        }
+
+        // Look for floor alongside the pair of vertical wall tiles.
+        return
+            IsOpenSpace(floor, x - 1, y) ||
+            IsOpenSpace(floor, x - 1, y - 1) ||
+            IsOpenSpace(floor, x + 1, y) ||
+            IsOpenSpace(floor, x + 1, y - 1);
+    }
+
+    private bool HasSouthWallConnection(
         DungeonFloor floor,
         int x,
         int y)
     {
-        bool northEast = IsOpenSpace(floor, x + 1, y - 1);
-        bool northWest = IsOpenSpace(floor, x - 1, y - 1);
-        bool southEast = IsOpenSpace(floor, x + 1, y + 1);
-        bool southWest = IsOpenSpace(floor, x - 1, y + 1);
-
-        int diagonalCount =
-            (northEast ? 1 : 0) +
-            (northWest ? 1 : 0) +
-            (southEast ? 1 : 0) +
-            (southWest ? 1 : 0);
-
-        if (diagonalCount == 1)
+        if (!IsWall(floor, x, y + 1))
         {
-            if (southEast)
-            {
-                return '┌';
-            }
-
-            if (southWest)
-            {
-                return '┐';
-            }
-
-            if (northEast)
-            {
-                return '└';
-            }
-
-            if (northWest)
-            {
-                return '┘';
-            }
+            return false;
         }
 
-        if (northEast && southEast &&
-            !northWest && !southWest)
-        {
-            return '│';
-        }
-
-        if (northWest && southWest &&
-            !northEast && !southWest)
-        {
-            return '│';
-        }
-
-        if (northEast && northWest &&
-            !southEast && !southWest)
-        {
-            return '─';
-        }
-
-        if (southEast && southWest &&
-            !northEast && !northWest)
-        {
-            return '─';
-        }
-
-        return '█';
+        return
+            IsOpenSpace(floor, x - 1, y) ||
+            IsOpenSpace(floor, x - 1, y + 1) ||
+            IsOpenSpace(floor, x + 1, y) ||
+            IsOpenSpace(floor, x + 1, y + 1);
     }
 
-    private bool IsOpenSpace(DungeonFloor floor, int x, int y)
+    private bool HasEastWallConnection(
+        DungeonFloor floor,
+        int x,
+        int y)
+    {
+        if (!IsWall(floor, x + 1, y))
+        {
+            return false;
+        }
+
+        // Look for floor above or below the pair of horizontal wall tiles.
+        return
+            IsOpenSpace(floor, x, y - 1) ||
+            IsOpenSpace(floor, x + 1, y - 1) ||
+            IsOpenSpace(floor, x, y + 1) ||
+            IsOpenSpace(floor, x + 1, y + 1);
+    }
+
+    private bool HasWestWallConnection(
+        DungeonFloor floor,
+        int x,
+        int y)
+    {
+        if (!IsWall(floor, x - 1, y))
+        {
+            return false;
+        }
+
+        return
+            IsOpenSpace(floor, x, y - 1) ||
+            IsOpenSpace(floor, x - 1, y - 1) ||
+            IsOpenSpace(floor, x, y + 1) ||
+            IsOpenSpace(floor, x - 1, y + 1);
+    }
+
+    private bool IsWall(
+    DungeonFloor floor,
+    int x,
+    int y)
     {
         if (!floor.IsInsideBounds(x, y))
         {
             return false;
         }
 
-        return floor.GetTile(x, y).Type == TileType.Floor;
+        return floor.GetTile(x, y).Type == TileType.Wall;
+    }
+
+    private bool IsOpenSpace(
+        DungeonFloor floor,
+        int x,
+        int y)
+    {
+        if (!floor.IsInsideBounds(x, y))
+        {
+            return false;
+        }
+
+        return floor.GetTile(x, y).IsWalkable;
+    }
+
+    private char GetIsolatedWallCharacter(
+    DungeonFloor floor,
+    int x,
+    int y)
+    {
+        bool north = IsOpenSpace(floor, x, y - 1);
+        bool south = IsOpenSpace(floor, x, y + 1);
+        bool east = IsOpenSpace(floor, x + 1, y);
+        bool west = IsOpenSpace(floor, x - 1, y);
+
+        // A wall separating spaces horizontally.
+        if (east || west)
+        {
+            return '│';
+        }
+
+        // A wall separating spaces vertically.
+        if (north || south)
+        {
+            return '─';
+        }
+
+        // Truly isolated solid geometry.
+        // This should be uncommon and is deliberately obvious if it occurs.
+        return '■';
     }
 }

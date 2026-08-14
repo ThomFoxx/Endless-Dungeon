@@ -9,13 +9,18 @@ public class DungeonGenerator
     private const int MaxPlacementAttempts = 100;
 
     public DungeonFloor GenerateFloor(
-        int width,
-        int height,
-        int seed)
+     int floorNumber,
+     int width,
+     int height,
+     int seed)
     {
         Random random = new(seed);
 
-        DungeonFloor floor = new(width, height);
+        DungeonFloor floor = new(
+            floorNumber,
+            width,
+            height,
+            seed);
 
         List<Room> rooms = GenerateRooms(
             floor,
@@ -28,13 +33,88 @@ public class DungeonGenerator
 
         GenerateWalls(floor);
 
-        if (rooms.Count > 0)
-        {
-            floor.StartX = rooms[0].CenterX;
-            floor.StartY = rooms[0].CenterY;
-        }
+        PlaceStairs(
+            floor,
+            rooms);
 
         return floor;
+    }
+
+    private void PlaceStairs(
+    DungeonFloor floor,
+    List<Room> rooms)
+    {
+        if (rooms.Count == 0)
+        {
+            throw new InvalidOperationException(
+                "Cannot place stairs on a floor with no rooms.");
+        }
+
+        Room startRoom = rooms[0];
+
+        floor.StartX = startRoom.CenterX;
+        floor.StartY = startRoom.CenterY;
+
+        // Floor 1 is the dungeon entrance, so it has no stairs up.
+        if (floor.FloorNumber > 1)
+        {
+            floor.HasStairsUp = true;
+
+            floor.StairsUpX = startRoom.CenterX;
+            floor.StairsUpY = startRoom.CenterY;
+
+            floor.SetTile(
+                floor.StairsUpX,
+                floor.StairsUpY,
+                TileType.StairsUp);
+        }
+
+        // Try to put the downward stairs in a room far from
+        // the room where the explorer entered.
+        Room downRoom = FindFarthestRoom(
+            startRoom,
+            rooms);
+
+        if (rooms.Count == 1)
+        {
+            // Unlikely, but keeps the two stairs separate
+            // if generation only managed to create one room.
+            floor.StairsDownX = startRoom.X;
+            floor.StairsDownY = startRoom.Y;
+        }
+        else
+        {
+            floor.StairsDownX = downRoom.CenterX;
+            floor.StairsDownY = downRoom.CenterY;
+        }
+
+        floor.SetTile(
+            floor.StairsDownX,
+            floor.StairsDownY,
+            TileType.StairsDown);
+    }
+
+    private Room FindFarthestRoom(
+        Room startingRoom,
+        List<Room> rooms)
+    {
+        Room farthestRoom = startingRoom;
+        int greatestDistance = -1;
+
+        foreach (Room room in rooms)
+        {
+            int distance =
+                Math.Abs(room.CenterX - startingRoom.CenterX) +
+                Math.Abs(room.CenterY - startingRoom.CenterY);
+
+            if (distance > greatestDistance)
+            {
+                greatestDistance = distance;
+                farthestRoom = room;
+            }
+        }
+
+        return farthestRoom;
     }
 
     private List<Room> GenerateRooms(

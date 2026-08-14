@@ -4,7 +4,10 @@ public class Tile
 {
     public TileType Type { get; set; }
 
-    public bool IsWalkable => Type == TileType.Floor;
+    public bool IsWalkable =>
+        Type == TileType.Floor ||
+        Type == TileType.StairsUp ||
+        Type == TileType.StairsDown;
 
     public Tile(TileType type = TileType.Empty)
     {

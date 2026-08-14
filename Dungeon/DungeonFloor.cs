@@ -4,16 +4,33 @@ public class DungeonFloor
 {
     private readonly Tile[,] _tiles;
 
+    public int FloorNumber { get; }
+    public int Seed { get; }
+
     public int Width { get; }
     public int Height { get; }
 
     public int StartX { get; set; }
     public int StartY { get; set; }
 
-    public DungeonFloor(int width, int height)
+    public bool HasStairsUp { get; set; }
+
+    public int StairsUpX { get; set; }
+    public int StairsUpY { get; set; }
+
+    public int StairsDownX { get; set; }
+    public int StairsDownY { get; set; }
+
+    public DungeonFloor(
+        int floorNumber,
+        int width,
+        int height,
+        int seed)
     {
+        FloorNumber = floorNumber;
         Width = width;
         Height = height;
+        Seed = seed;
 
         _tiles = new Tile[width, height];
 

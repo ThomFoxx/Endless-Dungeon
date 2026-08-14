@@ -4,5 +4,7 @@ public enum TileType
 {
     Empty,
     Floor,
-    Wall
+    Wall,
+    StairsUp,
+    StairsDown
 }
