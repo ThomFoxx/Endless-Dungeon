@@ -1,9 +1,11 @@
 ﻿namespace EndlessDungeon.Dungeon;
+using EndlessDungeon.Characters.Monsters;
 
 public class DungeonFloor
 {
     private readonly Tile[,] _tiles;
     private readonly List<Room> _rooms = new();
+    private readonly List<Monster> _monsters = new();
 
     public int FloorNumber { get; }
     public int Seed { get; }
@@ -28,6 +30,7 @@ public class DungeonFloor
     public int ExitPortalY { get; set; }
 
     public IReadOnlyList<Room> Rooms => _rooms;
+    public IReadOnlyList<Monster> Monsters => _monsters;
 
     public DungeonFloor(
         int floorNumber,
@@ -93,5 +96,24 @@ public class DungeonFloor
     public void AddRoom(Room room)
     {
         _rooms.Add(room);
+    }
+
+    public void AddMonster(Monster monster)
+    {
+        _monsters.Add(monster);
+    }
+
+    public Monster? GetMonsterAt(int x, int y)
+    {
+        return _monsters.FirstOrDefault(
+            monster =>
+                monster.IsAlive &&
+                monster.X == x &&
+                monster.Y == y);
+    }
+
+    public void RemoveMonster(Monster monster)
+    {
+        _monsters.Remove(monster);
     }
 }

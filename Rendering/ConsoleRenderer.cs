@@ -1,10 +1,15 @@
 ﻿using EndlessDungeon.Dungeon;
+using EndlessDungeon.Characters;
 using System.Text;
+using EndlessDungeon.Characters.Monsters;
 
 namespace EndlessDungeon.Rendering;
 
 public class ConsoleRenderer
 {
+    private int _lastRenderWidth;
+    private int _lastRenderHeight;
+
     public void Initialize()
     {
         Console.OutputEncoding = Encoding.UTF8;
@@ -35,34 +40,90 @@ public class ConsoleRenderer
 
     public void DrawDungeon(
     DungeonFloor floor,
-    int playerX,
-    int playerY)
+    Explorer explorer)
     {
-        Console.SetCursorPosition(0, 0);
+        string floorHeader =
+            $"Dungeon Floor {floor.FloorNumber}  |  Seed: {floor.Seed}";
 
-        Console.WriteLine(
-            $"Dungeon Floor {floor.FloorNumber}  |  Seed: {floor.Seed}");
+        string explorerHeader =
+            $"{explorer.Name}  |  HP: {explorer.CurrentHealth}/{explorer.MaxHealth}";
 
-        Console.WriteLine();
+        const string movementText =
+            "WASD / Arrow Keys - Move / Attack";
 
+        const string interactText =
+            "E - Interact / Use Stairs / Exit";
+
+        const string escapeText =
+            "Escape - Return to test camp";
+
+        // Determine how wide this frame needs to be.
+        int currentRenderWidth = new[]
+        {
+        floor.Width,
+        floorHeader.Length,
+        explorerHeader.Length,
+        movementText.Length,
+        interactText.Length,
+        escapeText.Length
+    }.Max();
+
+        // If the previous frame was wider, keep using that width
+        // so leftover characters are overwritten.
+        int renderWidth = Math.Max(
+            currentRenderWidth,
+            _lastRenderWidth);
+
+        int row = 0;
+
+        // Header
+        WritePaddedLine(
+            floorHeader,
+            row++,
+            renderWidth);
+
+        WritePaddedLine(
+            explorerHeader,
+            row++,
+            renderWidth);
+
+        WritePaddedLine(
+            string.Empty,
+            row++,
+            renderWidth);
+
+        // Dungeon map
         for (int y = 0; y < floor.Height; y++)
         {
+            Console.SetCursorPosition(0, row);
+
             for (int x = 0; x < floor.Width; x++)
             {
                 Tile tile = floor.GetTile(x, y);
 
-                // Tiles the explorer has never seen are completely hidden.
                 if (tile.Visibility == VisibilityState.Unseen)
                 {
+                    Console.ResetColor();
                     Console.Write(' ');
                     continue;
                 }
 
-                // Draw the explorer over the tile they are standing on.
-                if (x == playerX && y == playerY)
+                if (x == explorer.X && y == explorer.Y)
                 {
                     Console.ForegroundColor = ConsoleColor.Cyan;
-                    Console.Write('@');
+                    Console.Write(explorer.Glyph);
+                    continue;
+                }
+
+                Monster? monster =
+                    floor.GetMonsterAt(x, y);
+
+                if (
+                    tile.Visibility == VisibilityState.Visible &&
+                    monster != null)
+                {
+                    Console.ForegroundColor = monster.Color;
+                    Console.Write(monster.Glyph);
                     continue;
                 }
 
@@ -118,20 +179,67 @@ public class ConsoleRenderer
                         break;
 
                     default:
+                        Console.ResetColor();
                         Console.Write(' ');
                         break;
                 }
             }
 
-            Console.WriteLine();
+            Console.ResetColor();
+
+            // Clear anything remaining from a previously wider frame.
+            if (renderWidth > floor.Width)
+            {
+                Console.Write(
+                    new string(
+                        ' ',
+                        renderWidth - floor.Width));
+            }
+
+            row++;
         }
 
-        Console.ResetColor();
+        // Controls
+        WritePaddedLine(
+            string.Empty,
+            row++,
+            renderWidth);
 
-        Console.WriteLine();
-        Console.WriteLine("WASD / Arrow Keys - Move");
-        Console.WriteLine("E - Interact / Use Stairs / Exit");
-        Console.WriteLine("Escape - Return to test camp");
+        WritePaddedLine(
+            movementText,
+            row++,
+            renderWidth);
+
+        WritePaddedLine(
+            interactText,
+            row++,
+            renderWidth);
+
+        WritePaddedLine(
+            escapeText,
+            row++,
+            renderWidth);
+
+        // If the previous frame had more rows than this one,
+        // erase those old rows as well.
+        for (
+            int clearRow = row;
+            clearRow < _lastRenderHeight;
+            clearRow++)
+        {
+            WritePaddedLine(
+                string.Empty,
+                clearRow,
+                renderWidth);
+        }
+
+        _lastRenderWidth = currentRenderWidth;
+        _lastRenderHeight = row;
+
+        // Keep the cursor away from the dungeon itself.
+        Console.SetCursorPosition(
+            0,
+            row);
     }
 
     private char GetWallCharacter(
@@ -298,4 +406,31 @@ public class ConsoleRenderer
         // This should be uncommon and is deliberately obvious if it occurs.
         return '■';
     }
+
+    private void WritePaddedLine(
+    string text,
+    int row,
+    int width)
+    {
+        Console.SetCursorPosition(
+            0,
+            row);
+
+        Console.ResetColor();
+
+        Console.Write(text);
+
+        int remainingSpace =
+            width - text.Length;
+
+        if (remainingSpace > 0)
+        {
+            Console.Write(
+                new string(
+                    ' ',
+                    remainingSpace));
+        }
+    }
+
+
 }

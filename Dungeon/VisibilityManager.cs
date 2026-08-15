@@ -5,15 +5,15 @@ public class VisibilityManager
     private const int CorridorVisionRange = 6;
 
     public void UpdateVisibility(
-        DungeonFloor floor,
-        int playerX,
-        int playerY)
+    DungeonFloor floor,
+    int playerX,
+    int playerY)
     {
-        // Anything that was visible on the previous turn
-        // becomes remembered/explored.
+        // Tiles visible on the previous turn become remembered.
         MoveVisibleTilesToExplored(floor);
 
-        // The explorer can always see their immediate surroundings.
+        // Always reveal the explorer and their eight
+        // immediately surrounding tiles.
         RevealImmediateArea(
             floor,
             playerX,
@@ -23,21 +23,21 @@ public class VisibilityManager
             playerX,
             playerY);
 
+        // Standing inside a room reveals the entire room.
         if (playerTile.RegionId >= 0)
         {
-            // Entering a room reveals the entire room.
             RevealRoom(
                 floor,
                 playerTile.RegionId);
         }
-        else
-        {
-            // Corridors use straight-line visibility.
-            RevealCorridor(
-                floor,
-                playerX,
-                playerY);
-        }
+
+        // Always cast straight cardinal sight lines.
+        // This allows an explorer standing in a room to
+        // see through a doorway when aligned with it.
+        RevealCardinalSightLines(
+            floor,
+            playerX,
+            playerY);
     }
 
     private void MoveVisibleTilesToExplored(
@@ -110,7 +110,7 @@ public class VisibilityManager
         }
     }
 
-    private void RevealCorridor(
+    private void RevealCardinalSightLines(
         DungeonFloor floor,
         int playerX,
         int playerY)

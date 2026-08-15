@@ -1,4 +1,5 @@
 ﻿namespace EndlessDungeon.Dungeon;
+using EndlessDungeon.Characters.Monsters;
 
 public class DungeonGenerator
 {
@@ -37,7 +38,60 @@ public class DungeonGenerator
             floor,
             rooms);
 
+        PlaceTestSlime(
+            floor,
+            rooms,
+            random);
+
         return floor;
+    }
+
+    private void PlaceTestSlime(
+     DungeonFloor floor,
+     List<Room> rooms,
+     Random random)
+    {
+        // Work backward through the rooms to favor
+        // spawning away from the explorer's entrance.
+        for (int i = rooms.Count - 1; i >= 1; i--)
+        {
+            Room room = rooms[i];
+
+            int x = room.CenterX;
+            int y = room.CenterY;
+
+            Tile tile = floor.GetTile(
+                x,
+                y);
+
+            if (tile.Type != TileType.Floor)
+            {
+                continue;
+            }
+
+            int distanceFromStart =
+                Math.Abs(x - floor.StartX) +
+                Math.Abs(y - floor.StartY);
+
+            if (distanceFromStart < 4)
+            {
+                continue;
+            }
+
+            // Every Slime gets its own permanent chance
+            // between 30% and 50% of doing nothing.
+            double inactivityChance =
+                0.30 +
+                random.NextDouble() * 0.20;
+
+            floor.AddMonster(
+                new Slime(
+                    x,
+                    y,
+                    inactivityChance));
+
+            return;
+        }
     }
 
     private void PlaceStairs(

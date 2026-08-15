@@ -1,6 +1,8 @@
 ﻿using EndlessDungeon.Input;
 using EndlessDungeon.Rendering;
 using EndlessDungeon.Dungeon;
+using EndlessDungeon.Characters;
+using EndlessDungeon.Characters.Monsters;
 
 namespace EndlessDungeon;
 
@@ -9,6 +11,7 @@ public class Game
     private readonly ConsoleRenderer _renderer;
     private readonly InputManager _inputManager;
     private DungeonRun _dungeonRun;
+    private Explorer _explorer;
 
     private bool _isRunning = true;
 
@@ -17,7 +20,10 @@ public class Game
         _renderer = new ConsoleRenderer();
         _inputManager = new InputManager();
 
-        // Temporary explorer seed until character creation exists.
+        // Temporary explorer until character creation exists.
+        _explorer = new Explorer("Test Explorer");
+
+        // Temporary seed until Explorer owns dungeon generation data.
         _dungeonRun = new DungeonRun(12345);
     }
 
@@ -130,8 +136,9 @@ public class Game
 
         DungeonFloor floor = _dungeonRun.BeginExpedition();
 
-        int playerX = floor.StartX;
-        int playerY = floor.StartY;
+        _explorer.SetPosition(
+            floor.StartX,
+            floor.StartY);
 
         bool isExploring = true;
 
@@ -141,13 +148,12 @@ public class Game
         {
             visibilityManager.UpdateVisibility(
                 floor,
-                playerX,
-                playerY);
+                _explorer.X,
+                _explorer.Y);
 
             _renderer.DrawDungeon(
                 floor,
-                playerX,
-                playerY);
+                _explorer);
 
             ConsoleKey key = _inputManager.ReadKey();
 
@@ -178,15 +184,16 @@ public class Game
 
                 case ConsoleKey.E:
                     Tile currentTile = floor.GetTile(
-                        playerX,
-                        playerY);
+                        _explorer.X,
+                        _explorer.Y);
 
                     if (currentTile.Type == TileType.StairsDown)
                     {
                         floor = _dungeonRun.Descend();
 
-                        playerX = floor.StairsUpX;
-                        playerY = floor.StairsUpY;
+                        _explorer.SetPosition(
+                            floor.StairsUpX,
+                            floor.StairsUpY);
                     }
                     else if (
                         currentTile.Type == TileType.StairsUp &&
@@ -194,8 +201,9 @@ public class Game
                     {
                         floor = _dungeonRun.Ascend();
 
-                        playerX = floor.StairsDownX;
-                        playerY = floor.StairsDownY;
+                        _explorer.SetPosition(
+                            floor.StairsDownX,
+                            floor.StairsDownY);
                     }
                     else if (
                         currentTile.Type == TileType.ExitPortal)
@@ -214,12 +222,22 @@ public class Game
                     continue;
             }
 
-            TryMovePlayer(
+            bool turnTaken = TryMoveExplorer(
                 floor,
-                ref playerX,
-                ref playerY,
                 moveX,
                 moveY);
+
+            if (turnTaken)
+            {
+                RunMonsterTurns(floor);
+            }
+
+            if (!_explorer.IsAlive)
+            {
+                isExploring = false;
+
+                ShowTestDeathMessage();
+            }
         }
     }
 
@@ -238,18 +256,134 @@ public class Game
         _inputManager.ReadKey();
     }
 
-    private void TryMovePlayer(DungeonFloor floor, ref int playerX, ref int playerY, int moveX, int moveY)
+    private bool TryMoveExplorer(
+     DungeonFloor floor,
+     int moveX,
+     int moveY)
     {
-        int targetX = playerX + moveX;
-        int targetY = playerY + moveY;
-
-        if (!floor.IsWalkable(targetX, targetY))
+        if (moveX == 0 && moveY == 0)
         {
-            return;
+            return false;
         }
 
-        playerX = targetX;
-        playerY = targetY;
+        int targetX =
+            _explorer.X + moveX;
+
+        int targetY =
+            _explorer.Y + moveY;
+
+        if (!floor.IsWalkable(
+            targetX,
+            targetY))
+        {
+            return false;
+        }
+
+        // This is a valid explorer action, so begin
+        // a new monster round.
+        BeginMonsterRound(floor);
+
+        Monster? targetMonster =
+            floor.GetMonsterAt(
+                targetX,
+                targetY);
+
+        // Moving into a monster attacks it.
+        if (targetMonster != null)
+        {
+            _explorer.AttackMonster(
+                targetMonster);
+
+            if (targetMonster.IsAlive)
+            {
+                // Being attacked always provokes a response.
+                // The Slime's inactivity chance does not apply.
+                targetMonster.Retaliate(
+                    _explorer);
+            }
+            else
+            {
+                floor.RemoveMonster(
+                    targetMonster);
+            }
+
+            return true;
+        }
+
+        // Remember which monsters threatened the explorer
+        // before the movement occurred.
+        List<Monster> adjacentMonsters =
+            GetAdjacentMonsters(
+                floor,
+                _explorer.X,
+                _explorer.Y);
+
+        _explorer.SetPosition(
+            targetX,
+            targetY);
+
+        // Any monster that was adjacent but is no longer
+        // adjacent gets an opportunity attack.
+        foreach (Monster monster in adjacentMonsters)
+        {
+            if (!_explorer.IsAlive)
+            {
+                break;
+            }
+
+            int newDistance =
+                Math.Abs(monster.X - _explorer.X) +
+                Math.Abs(monster.Y - _explorer.Y);
+
+            if (newDistance > 1)
+            {
+                monster.MakeOpportunityAttack(
+                    _explorer);
+            }
+        }
+
+        return true;
+    }
+
+    private void BeginMonsterRound(
+    DungeonFloor floor)
+    {
+        foreach (Monster monster in floor.Monsters)
+        {
+            monster.BeginRound();
+        }
+    }
+
+    private void RunMonsterTurns(
+    DungeonFloor floor)
+    {
+        foreach (Monster monster in floor.Monsters.ToList())
+        {
+            if (!_explorer.IsAlive)
+            {
+                break;
+            }
+
+            monster.TakeTurn(
+                floor,
+                _explorer);
+        }
+    }
+
+    private void ShowTestDeathMessage()
+    {
+        _renderer.Clear();
+        _renderer.WriteTitle("EXPLORER SLAIN");
+
+        Console.WriteLine();
+        Console.WriteLine("The explorer has fallen in the dungeon.");
+        Console.WriteLine();
+        Console.WriteLine(
+            "The full death and Honor Board system will be added next.");
+        Console.WriteLine();
+        Console.WriteLine("Press any key to return to camp.");
+
+        _inputManager.ReadKey();
     }
 
     private void DestroyDungeonDebug()
@@ -278,5 +412,18 @@ public class Game
         Console.WriteLine("Press any key to return to camp.");
 
         _inputManager.ReadKey();
+    }
+
+    private List<Monster> GetAdjacentMonsters(
+    DungeonFloor floor,
+    int x,
+    int y)
+    {
+        return floor.Monsters
+            .Where(monster =>
+                monster.IsAlive &&
+                Math.Abs(monster.X - x) +
+                Math.Abs(monster.Y - y) == 1)
+            .ToList();
     }
 }
