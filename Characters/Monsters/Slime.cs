@@ -1,4 +1,5 @@
 ﻿using EndlessDungeon.Dungeon;
+using EndlessDungeon.UI;
 
 namespace EndlessDungeon.Characters.Monsters;
 
@@ -30,20 +31,18 @@ public class Slime : Monster
 
     protected override void PerformTurn(
         DungeonFloor floor,
-        Explorer explorer)
+        Explorer explorer,
+        ActionLog actionLog)
     {
         int distance =
             GetDistanceToExplorer(explorer);
 
-        // The Slime remains dormant until the explorer
-        // comes reasonably close.
         if (distance > AwarenessRange)
         {
             return;
         }
 
-        // Slimes are unintelligent and sometimes simply
-        // fail to respond even when they notice something.
+        // Slimes sometimes simply fail to act.
         if (Random.Shared.NextDouble() < InactivityChance)
         {
             return;
@@ -51,7 +50,12 @@ public class Slime : Monster
 
         if (distance == 1)
         {
-            AttackExplorer(explorer);
+            int damage =
+                AttackExplorer(explorer);
+
+            actionLog.Add(
+                $"Slime hits you for {damage} damage.");
+
             return;
         }
 

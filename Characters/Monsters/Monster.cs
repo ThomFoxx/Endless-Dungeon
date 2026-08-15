@@ -1,4 +1,5 @@
 ﻿using EndlessDungeon.Dungeon;
+using EndlessDungeon.UI;
 
 namespace EndlessDungeon.Characters.Monsters;
 
@@ -19,8 +20,6 @@ public abstract class Monster
 
     public bool IsAlive => CurrentHealth > 0;
 
-    // Reactions such as retaliation and opportunity attacks
-    // consume the monster's normal action for this round.
     public bool HasActedThisRound { get; private set; }
 
     protected Monster(
@@ -47,7 +46,9 @@ public abstract class Monster
         Defense = defense;
     }
 
-    public void SetPosition(int x, int y)
+    public void SetPosition(
+        int x,
+        int y)
     {
         X = x;
         Y = y;
@@ -67,7 +68,8 @@ public abstract class Monster
 
     public void TakeTurn(
         DungeonFloor floor,
-        Explorer explorer)
+        Explorer explorer,
+        ActionLog actionLog)
     {
         if (!IsAlive || HasActedThisRound)
         {
@@ -76,49 +78,65 @@ public abstract class Monster
 
         PerformTurn(
             floor,
-            explorer);
+            explorer,
+            actionLog);
 
         HasActedThisRound = true;
     }
 
-    // Each monster type decides what it does on its normal turn.
     protected abstract void PerformTurn(
         DungeonFloor floor,
-        Explorer explorer);
+        Explorer explorer,
+        ActionLog actionLog);
 
-    public void Retaliate(Explorer explorer)
+    public void Retaliate(
+        Explorer explorer,
+        ActionLog actionLog)
     {
         if (!IsAlive)
         {
             return;
         }
 
-        AttackExplorer(explorer);
+        int damage =
+            AttackExplorer(explorer);
+
+        actionLog.Add(
+            $"{Name} retaliates for {damage} damage.");
 
         HasActedThisRound = true;
     }
 
     public void MakeOpportunityAttack(
-        Explorer explorer)
+        Explorer explorer,
+        ActionLog actionLog)
     {
         if (!IsAlive || HasActedThisRound)
         {
             return;
         }
 
-        AttackExplorer(explorer);
+        int damage =
+            AttackExplorer(explorer);
+
+        actionLog.Add(
+            $"{Name} strikes as you retreat for {damage} damage.");
 
         HasActedThisRound = true;
     }
 
-    protected void AttackExplorer(
+    protected int AttackExplorer(
         Explorer explorer)
     {
         int damage = Math.Max(
             1,
             Attack - explorer.Defense);
 
-        explorer.TakeDamage(damage);
+        explorer.TakeDamage(
+            damage,
+            Name);
+
+        return damage;
     }
 
     protected int GetDistanceToExplorer(
@@ -145,7 +163,6 @@ public abstract class Monster
         int verticalDistance =
             Math.Abs(explorer.Y - Y);
 
-        // Try the axis with the greatest distance first.
         if (horizontalDistance >= verticalDistance)
         {
             if (TryMove(
@@ -210,7 +227,6 @@ public abstract class Monster
             return false;
         }
 
-        // Normal movement never enters the explorer's tile.
         if (
             targetX == explorer.X &&
             targetY == explorer.Y)

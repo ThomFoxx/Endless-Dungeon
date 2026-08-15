@@ -2,6 +2,7 @@
 using EndlessDungeon.Characters;
 using System.Text;
 using EndlessDungeon.Characters.Monsters;
+using EndlessDungeon.UI;
 
 namespace EndlessDungeon.Rendering;
 
@@ -9,6 +10,7 @@ public class ConsoleRenderer
 {
     private int _lastRenderWidth;
     private int _lastRenderHeight;
+    private const int DungeonMapStartRow = 3;
 
     public void Initialize()
     {
@@ -40,7 +42,8 @@ public class ConsoleRenderer
 
     public void DrawDungeon(
     DungeonFloor floor,
-    Explorer explorer)
+    Explorer explorer,
+    ActionLog actionLog)
     {
         string floorHeader =
             $"Dungeon Floor {floor.FloorNumber}  |  Seed: {floor.Seed}";
@@ -57,7 +60,15 @@ public class ConsoleRenderer
         const string escapeText =
             "Escape - Return to test camp";
 
-        // Determine how wide this frame needs to be.
+        const string actionHeader =
+            "Recent Actions:";
+
+        int logWidth =
+            actionLog.Entries.Count > 0
+                ? actionLog.Entries.Max(
+                    entry => entry.Length + 2)
+                : 0;
+
         int currentRenderWidth = new[]
         {
         floor.Width,
@@ -65,18 +76,42 @@ public class ConsoleRenderer
         explorerHeader.Length,
         movementText.Length,
         interactText.Length,
-        escapeText.Length
-    }.Max();
+        escapeText.Length,
+        actionHeader.Length,
+        logWidth
+        }.Max();
 
-        // If the previous frame was wider, keep using that width
-        // so leftover characters are overwritten.
         int renderWidth = Math.Max(
             currentRenderWidth,
             _lastRenderWidth);
 
+        // 3 header rows
+        // + map height
+        // + 1 blank row
+        // + 1 action-log header
+        // + 4 action-log rows
+        // + 1 blank row
+        // + 3 control rows
+        int requiredHeight =
+            floor.Height + 13;
+
+        // Add one extra row because some rendering helpers
+        // place the cursor immediately below the final line.
+        bool hasEnoughBuffer = EnsureConsoleBuffer(
+            renderWidth + 1,
+            requiredHeight + 1);
+
+        if (!hasEnoughBuffer)
+        {
+            Console.Clear();
+            Console.WriteLine("The terminal window is too small to display the game.");
+            Console.WriteLine();
+            Console.WriteLine("Please enlarge the terminal window and try again.");
+            return;
+        }
+
         int row = 0;
 
-        // Header
         WritePaddedLine(
             floorHeader,
             row++,
@@ -92,10 +127,12 @@ public class ConsoleRenderer
             row++,
             renderWidth);
 
-        // Dungeon map
+        // Dungeon map.
         for (int y = 0; y < floor.Height; y++)
         {
-            Console.SetCursorPosition(0, row);
+            Console.SetCursorPosition(
+                0,
+                row);
 
             for (int x = 0; x < floor.Width; x++)
             {
@@ -110,7 +147,9 @@ public class ConsoleRenderer
 
                 if (x == explorer.X && y == explorer.Y)
                 {
-                    Console.ForegroundColor = ConsoleColor.Cyan;
+                    Console.ForegroundColor =
+                        ConsoleColor.Cyan;
+
                     Console.Write(explorer.Glyph);
                     continue;
                 }
@@ -122,13 +161,16 @@ public class ConsoleRenderer
                     tile.Visibility == VisibilityState.Visible &&
                     monster != null)
                 {
-                    Console.ForegroundColor = monster.Color;
+                    Console.ForegroundColor =
+                        monster.Color;
+
                     Console.Write(monster.Glyph);
                     continue;
                 }
 
                 bool isExplored =
-                    tile.Visibility == VisibilityState.Explored;
+                    tile.Visibility ==
+                    VisibilityState.Explored;
 
                 switch (tile.Type)
                 {
@@ -139,7 +181,10 @@ public class ConsoleRenderer
                                 : ConsoleColor.Gray;
 
                         Console.Write(
-                            GetWallCharacter(floor, x, y));
+                            GetWallCharacter(
+                                floor,
+                                x,
+                                y));
                         break;
 
                     case TileType.Floor:
@@ -187,7 +232,6 @@ public class ConsoleRenderer
 
             Console.ResetColor();
 
-            // Clear anything remaining from a previously wider frame.
             if (renderWidth > floor.Width)
             {
                 Console.Write(
@@ -199,7 +243,30 @@ public class ConsoleRenderer
             row++;
         }
 
-        // Controls
+        WritePaddedLine(
+            string.Empty,
+            row++,
+            renderWidth);
+
+        // Action log.
+        WritePaddedLine(
+            actionHeader,
+            row++,
+            renderWidth);
+
+        for (int i = 0; i < 4; i++)
+        {
+            string message =
+                i < actionLog.Entries.Count
+                    ? $"  {actionLog.Entries[i]}"
+                    : string.Empty;
+
+            WritePaddedLine(
+                message,
+                row++,
+                renderWidth);
+        }
+
         WritePaddedLine(
             string.Empty,
             row++,
@@ -220,8 +287,7 @@ public class ConsoleRenderer
             row++,
             renderWidth);
 
-        // If the previous frame had more rows than this one,
-        // erase those old rows as well.
+        // Erase rows left over from a previously taller frame.
         for (
             int clearRow = row;
             clearRow < _lastRenderHeight;
@@ -233,13 +299,13 @@ public class ConsoleRenderer
                 renderWidth);
         }
 
-        _lastRenderWidth = currentRenderWidth;
-        _lastRenderHeight = row;
+        _lastRenderWidth =
+            currentRenderWidth;
 
-        // Keep the cursor away from the dungeon itself.
-        Console.SetCursorPosition(
-            0,
-            row);
+        _lastRenderHeight =
+            row;
+
+        Console.SetCursorPosition(0, Math.Min(row, Console.BufferHeight - 1));
     }
 
     private char GetWallCharacter(
@@ -432,5 +498,86 @@ public class ConsoleRenderer
         }
     }
 
+    public void FlashExplorerHit(
+    Explorer explorer)
+    {
+        string explorerHeader =
+            $"{explorer.Name}  |  HP: {explorer.CurrentHealth}/{explorer.MaxHealth}";
 
+        // Flash the HP line red.
+        Console.SetCursorPosition(
+            0,
+            1);
+
+        Console.ForegroundColor =
+            ConsoleColor.Red;
+
+        Console.Write(
+            explorerHeader.PadRight(
+                _lastRenderWidth));
+
+        // Flash the explorer's map cell.
+        Console.SetCursorPosition(
+            explorer.X,
+            DungeonMapStartRow + explorer.Y);
+
+        Console.ForegroundColor =
+            ConsoleColor.White;
+
+        Console.BackgroundColor =
+            ConsoleColor.DarkRed;
+
+        Console.Write(explorer.Glyph);
+
+        // Brief pulse without clearing or redrawing the screen.
+        System.Threading.Thread.Sleep(90);
+
+        // Restore the HP line.
+        WritePaddedLine(
+            explorerHeader,
+            1,
+            _lastRenderWidth);
+
+        // Restore the explorer glyph.
+        Console.SetCursorPosition(
+            explorer.X,
+            DungeonMapStartRow + explorer.Y);
+
+        Console.ForegroundColor =
+            ConsoleColor.Cyan;
+
+        Console.BackgroundColor =
+            ConsoleColor.Black;
+
+        Console.Write(explorer.Glyph);
+
+        Console.ResetColor();
+
+        Console.SetCursorPosition(
+            0,
+            Math.Min(
+                _lastRenderHeight,
+                Console.BufferHeight - 1));
+    }
+
+    private bool EnsureConsoleBuffer(int requiredWidth, int requiredHeight)
+    {
+        if (requiredWidth <= Console.BufferWidth &&
+            requiredHeight <= Console.BufferHeight)
+        {
+            return true;
+        }
+
+        // Explicitly guarded because SetBufferSize is Windows-only.
+        if (OperatingSystem.IsWindows())
+        {
+            int newWidth = Math.Max(Console.BufferWidth, requiredWidth);
+            int newHeight = Math.Max(Console.BufferHeight, requiredHeight);
+
+            Console.SetBufferSize(newWidth, newHeight);
+            return true;
+        }
+
+        return false;
+    }
 }

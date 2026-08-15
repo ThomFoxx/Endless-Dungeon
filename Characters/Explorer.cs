@@ -8,6 +8,8 @@ public class Explorer
 
     public char Glyph { get; set; } = '₽';
 
+    public int DungeonSeed { get; }
+
     public int X { get; set; }
     public int Y { get; set; }
 
@@ -20,27 +22,49 @@ public class Explorer
     public int Level { get; set; } = 1;
     public int Experience { get; set; }
 
+    public int DeepestFloorReached { get; private set; } = 1;
+
+    public string LastDamageSource { get; private set; } =
+        "Unknown";
+
     public bool IsAlive => CurrentHealth > 0;
 
-    public Explorer(string name)
+    public Explorer(
+        string name,
+        int dungeonSeed)
     {
         Name = name;
+        DungeonSeed = dungeonSeed;
     }
 
-    public void SetPosition(int x, int y)
+    public void SetPosition(
+        int x,
+        int y)
     {
         X = x;
         Y = y;
     }
 
-    public void TakeDamage(int damage)
+    public void RecordFloorReached(
+        int floorNumber)
+    {
+        DeepestFloorReached = Math.Max(
+            DeepestFloorReached,
+            floorNumber);
+    }
+
+    public void TakeDamage(
+        int damage,
+        string source)
     {
         CurrentHealth = Math.Max(
             0,
             CurrentHealth - damage);
+
+        LastDamageSource = source;
     }
 
-    public void AttackMonster(
+    public int AttackMonster(
     Monster monster)
     {
         int damage = Math.Max(
@@ -48,5 +72,7 @@ public class Explorer
             Attack - monster.Defense);
 
         monster.TakeDamage(damage);
+
+        return damage;
     }
 }

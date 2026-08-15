@@ -3,6 +3,8 @@ using EndlessDungeon.Rendering;
 using EndlessDungeon.Dungeon;
 using EndlessDungeon.Characters;
 using EndlessDungeon.Characters.Monsters;
+using EndlessDungeon.Records;
+using EndlessDungeon.UI;
 
 namespace EndlessDungeon;
 
@@ -10,8 +12,11 @@ public class Game
 {
     private readonly ConsoleRenderer _renderer;
     private readonly InputManager _inputManager;
-    private DungeonRun _dungeonRun;
+    private readonly HonorBoard _honorBoard;
+    private readonly ActionLog _actionLog;
+
     private Explorer _explorer;
+    private DungeonRun _dungeonRun;
 
     private bool _isRunning = true;
 
@@ -19,12 +24,30 @@ public class Game
     {
         _renderer = new ConsoleRenderer();
         _inputManager = new InputManager();
+        _honorBoard = new HonorBoard();
+        _actionLog = new ActionLog();
 
-        // Temporary explorer until character creation exists.
-        _explorer = new Explorer("Test Explorer");
+        _explorer = CreateNewExplorer();
 
-        // Temporary seed until Explorer owns dungeon generation data.
-        _dungeonRun = new DungeonRun(12345);
+        _dungeonRun = new DungeonRun(
+            _explorer.DungeonSeed);
+    }
+
+    private Explorer CreateNewExplorer()
+    {
+        int explorerNumber =
+            _honorBoard.Records.Count + 1;
+
+        string name =
+            $"Explorer {explorerNumber}";
+
+        int dungeonSeed = Random.Shared.Next(
+            int.MinValue,
+            int.MaxValue);
+
+        return new Explorer(
+            name,
+            dungeonSeed);
     }
 
     public void Run()
@@ -44,6 +67,16 @@ public class Game
         _renderer.WriteTitle("EXPLORER'S CAMP");
 
         Console.WriteLine();
+        Console.WriteLine(
+            $"  Explorer: {_explorer.Name}");
+
+        Console.WriteLine(
+            $"  HP: {_explorer.CurrentHealth}/{_explorer.MaxHealth}");
+
+        Console.WriteLine(
+            $"  Deepest Floor: {_explorer.DeepestFloorReached}");
+
+        Console.WriteLine();
         Console.WriteLine("  [E] Enter Dungeon");
         Console.WriteLine("  [I] Inventory");
         Console.WriteLine("  [C] Storage Chest");
@@ -55,7 +88,8 @@ public class Game
 
         Console.WriteLine();
         Console.ForegroundColor = ConsoleColor.DarkGray;
-        Console.WriteLine("  [X] DEBUG - Destroy Dungeon");
+        Console.WriteLine(
+            "  [X] DEBUG - Simulate Explorer Death");
         Console.ResetColor();
 
         ConsoleKey key = _inputManager.ReadKey();
@@ -75,7 +109,7 @@ public class Game
                 break;
 
             case ConsoleKey.H:
-                ShowPlaceholder("Honor Board");
+                ShowHonorBoard();
                 break;
 
             case ConsoleKey.S:
@@ -91,7 +125,7 @@ public class Game
                 break;
 
             case ConsoleKey.X:
-                DestroyDungeonDebug();
+                HandleDebugDeath();
                 break;
         }
     }
@@ -130,15 +164,58 @@ public class Game
         _inputManager.ReadKey();
     }
 
+    private void ShowHonorBoard()
+    {
+        _renderer.Clear();
+        _renderer.WriteTitle("HONOR BOARD");
+
+        Console.WriteLine();
+
+        if (_honorBoard.Records.Count == 0)
+        {
+            Console.WriteLine(
+                "No explorers have yet fallen in the Endless Dungeon.");
+        }
+        else
+        {
+            foreach (HonorRecord record in _honorBoard.Records)
+            {
+                Console.WriteLine(
+                    $"{record.ExplorerName}");
+
+                Console.WriteLine(
+                    $"  Level: {record.Level}");
+
+                Console.WriteLine(
+                    $"  Deepest Floor: {record.DeepestFloor}");
+
+                Console.WriteLine(
+                    $"  {record.CauseOfDeath}");
+
+                Console.WriteLine();
+            }
+        }
+
+        Console.WriteLine(
+            "Press any key to return to camp.");
+
+        _inputManager.ReadKey();
+    }
+
     private void RunDungeonTest()
     {
         VisibilityManager visibilityManager = new();
 
-        DungeonFloor floor = _dungeonRun.BeginExpedition();
+        DungeonFloor floor =
+            _dungeonRun.BeginExpedition();
 
         _explorer.SetPosition(
             floor.StartX,
             floor.StartY);
+
+        _actionLog.Clear();
+        _actionLog.Add(
+            "You enter the Endless Dungeon.");
 
         bool isExploring = true;
 
@@ -153,9 +230,11 @@ public class Game
 
             _renderer.DrawDungeon(
                 floor,
-                _explorer);
+                _explorer,
+                _actionLog);
 
-            ConsoleKey key = _inputManager.ReadKey();
+            ConsoleKey key =
+                _inputManager.ReadKey();
 
             int moveX = 0;
             int moveY = 0;
@@ -183,30 +262,46 @@ public class Game
                     break;
 
                 case ConsoleKey.E:
-                    Tile currentTile = floor.GetTile(
-                        _explorer.X,
-                        _explorer.Y);
+                    Tile currentTile =
+                        floor.GetTile(
+                            _explorer.X,
+                            _explorer.Y);
 
-                    if (currentTile.Type == TileType.StairsDown)
+                    if (
+                        currentTile.Type ==
+                        TileType.StairsDown)
                     {
-                        floor = _dungeonRun.Descend();
+                        floor =
+                            _dungeonRun.Descend();
+
+                        _explorer.RecordFloorReached(
+                            floor.FloorNumber);
 
                         _explorer.SetPosition(
                             floor.StairsUpX,
                             floor.StairsUpY);
+
+                        _actionLog.Add(
+                            $"You descend to Floor {floor.FloorNumber}.");
                     }
                     else if (
-                        currentTile.Type == TileType.StairsUp &&
+                        currentTile.Type ==
+                        TileType.StairsUp &&
                         _dungeonRun.CurrentFloorNumber > 1)
                     {
-                        floor = _dungeonRun.Ascend();
+                        floor =
+                            _dungeonRun.Ascend();
 
                         _explorer.SetPosition(
                             floor.StairsDownX,
                             floor.StairsDownY);
+
+                        _actionLog.Add(
+                            $"You ascend to Floor {floor.FloorNumber}.");
                     }
                     else if (
-                        currentTile.Type == TileType.ExitPortal)
+                        currentTile.Type ==
+                        TileType.ExitPortal)
                     {
                         isExploring = false;
 
@@ -222,21 +317,35 @@ public class Game
                     continue;
             }
 
-            bool turnTaken = TryMoveExplorer(
-                floor,
-                moveX,
-                moveY);
+            int healthBeforeTurn =
+                _explorer.CurrentHealth;
+
+            bool turnTaken =
+                TryMoveExplorer(
+                    floor,
+                    moveX,
+                    moveY);
 
             if (turnTaken)
             {
                 RunMonsterTurns(floor);
             }
 
+            // Give immediate visual feedback if anything
+            // damaged the explorer during this turn.
+            if (
+                _explorer.CurrentHealth <
+                healthBeforeTurn)
+            {
+                _renderer.FlashExplorerHit(
+                    _explorer);
+            }
+
             if (!_explorer.IsAlive)
             {
                 isExploring = false;
 
-                ShowTestDeathMessage();
+                HandleExplorerDeath();
             }
         }
     }
@@ -257,9 +366,9 @@ public class Game
     }
 
     private bool TryMoveExplorer(
-     DungeonFloor floor,
-     int moveX,
-     int moveY)
+    DungeonFloor floor,
+    int moveX,
+    int moveY)
     {
         if (moveX == 0 && moveY == 0)
         {
@@ -279,8 +388,6 @@ public class Game
             return false;
         }
 
-        // This is a valid explorer action, so begin
-        // a new monster round.
         BeginMonsterRound(floor);
 
         Monster? targetMonster =
@@ -288,21 +395,26 @@ public class Game
                 targetX,
                 targetY);
 
-        // Moving into a monster attacks it.
         if (targetMonster != null)
         {
-            _explorer.AttackMonster(
-                targetMonster);
+            int damage =
+                _explorer.AttackMonster(
+                    targetMonster);
+
+            _actionLog.Add(
+                $"You hit {targetMonster.Name} for {damage} damage.");
 
             if (targetMonster.IsAlive)
             {
-                // Being attacked always provokes a response.
-                // The Slime's inactivity chance does not apply.
                 targetMonster.Retaliate(
-                    _explorer);
+                    _explorer,
+                    _actionLog);
             }
             else
             {
+                _actionLog.Add(
+                    $"{targetMonster.Name} is defeated.");
+
                 floor.RemoveMonster(
                     targetMonster);
             }
@@ -310,8 +422,6 @@ public class Game
             return true;
         }
 
-        // Remember which monsters threatened the explorer
-        // before the movement occurred.
         List<Monster> adjacentMonsters =
             GetAdjacentMonsters(
                 floor,
@@ -322,8 +432,6 @@ public class Game
             targetX,
             targetY);
 
-        // Any monster that was adjacent but is no longer
-        // adjacent gets an opportunity attack.
         foreach (Monster monster in adjacentMonsters)
         {
             if (!_explorer.IsAlive)
@@ -338,7 +446,8 @@ public class Game
             if (newDistance > 1)
             {
                 monster.MakeOpportunityAttack(
-                    _explorer);
+                    _explorer,
+                    _actionLog);
             }
         }
 
@@ -366,54 +475,52 @@ public class Game
 
             monster.TakeTurn(
                 floor,
-                _explorer);
+                _explorer,
+                _actionLog);
         }
     }
 
-    private void ShowTestDeathMessage()
+    private void HandleDebugDeath()
     {
-        _renderer.Clear();
-        _renderer.WriteTitle("EXPLORER SLAIN");
+        string explorerName =
+            _explorer.Name;
 
-        Console.WriteLine();
-        Console.WriteLine("The explorer has fallen in the dungeon.");
-        Console.WriteLine();
-        Console.WriteLine(
-            "The full death and Honor Board system will be added next.");
-        Console.WriteLine();
-        Console.WriteLine("Press any key to return to camp.");
+        int oldSeed =
+            _explorer.DungeonSeed;
 
-        _inputManager.ReadKey();
-    }
+        _honorBoard.AddDebugExplorer(
+            _explorer);
 
-    private void DestroyDungeonDebug()
-    {
-        int oldSeed = _dungeonRun.ExplorerSeed;
+        _explorer = CreateNewExplorer();
 
-        // Simulate a new explorer receiving a completely new dungeon.
-        int newSeed = Random.Shared.Next(
-            int.MinValue,
-            int.MaxValue);
-
-        _dungeonRun = new DungeonRun(newSeed);
+        _dungeonRun = new DungeonRun(
+            _explorer.DungeonSeed);
 
         _renderer.Clear();
         _renderer.WriteTitle("DEBUG - EXPLORER DEATH");
 
         Console.WriteLine();
-        Console.WriteLine("The current dungeon has been destroyed.");
+        Console.WriteLine(
+            $"{explorerName} has been removed.");
+
         Console.WriteLine();
-        Console.WriteLine($"Old Explorer Seed: {oldSeed}");
-        Console.WriteLine($"New Explorer Seed: {newSeed}");
+        Console.WriteLine(
+            $"Old Dungeon Seed: {oldSeed}");
+
+        Console.WriteLine(
+            $"New Dungeon Seed: {_explorer.DungeonSeed}");
+
         Console.WriteLine();
-        Console.WriteLine("All dungeon floors and exploration data");
-        Console.WriteLine("from the previous explorer are gone.");
+        Console.WriteLine(
+            "The previous dungeon has been destroyed.");
+
         Console.WriteLine();
-        Console.WriteLine("Press any key to return to camp.");
+        Console.WriteLine(
+            "Press any key to return to camp.");
 
         _inputManager.ReadKey();
     }
-
+    
     private List<Monster> GetAdjacentMonsters(
     DungeonFloor floor,
     int x,
@@ -425,5 +532,55 @@ public class Game
                 Math.Abs(monster.X - x) +
                 Math.Abs(monster.Y - y) == 1)
             .ToList();
+    }
+
+    private void HandleExplorerDeath()
+    {
+        string explorerName =
+            _explorer.Name;
+
+        int deepestFloor =
+            _explorer.DeepestFloorReached;
+
+        string cause =
+            _explorer.LastDamageSource;
+
+        // Preserve the dead explorer's record.
+        _honorBoard.AddExplorer(
+            _explorer);
+
+        // The dead explorer's dungeon is completely discarded.
+        _explorer = CreateNewExplorer();
+
+        _dungeonRun = new DungeonRun(
+            _explorer.DungeonSeed);
+
+        _renderer.Clear();
+        _renderer.WriteTitle("EXPLORER SLAIN");
+
+        Console.WriteLine();
+        Console.WriteLine(
+            $"{explorerName} has fallen.");
+
+        Console.WriteLine();
+        Console.WriteLine(
+            $"Deepest Floor Reached: {deepestFloor}");
+
+        Console.WriteLine(
+            $"Cause of Death: Slain by {cause}");
+
+        Console.WriteLine();
+        Console.WriteLine(
+            "Their dungeon fades away with them.");
+
+        Console.WriteLine();
+        Console.WriteLine(
+            $"{_explorer.Name} will be the next to enter.");
+
+        Console.WriteLine();
+        Console.WriteLine(
+            "Press any key to return to camp.");
+
+        _inputManager.ReadKey();
     }
 }
