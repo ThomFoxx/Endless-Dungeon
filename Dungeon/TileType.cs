@@ -6,5 +6,6 @@ public enum TileType
     Floor,
     Wall,
     StairsUp,
-    StairsDown
+    StairsDown,
+    ExitPortal
 }

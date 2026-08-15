@@ -2,6 +2,8 @@
 
 public class Room
 {
+    public int Id { get; }
+
     public int X { get; }
     public int Y { get; }
 
@@ -11,8 +13,15 @@ public class Room
     public int CenterX => X + Width / 2;
     public int CenterY => Y + Height / 2;
 
-    public Room(int x, int y, int width, int height)
+    public Room(
+        int id,
+        int x,
+        int y,
+        int width,
+        int height)
     {
+        Id = id;
+
         X = x;
         Y = y;
 

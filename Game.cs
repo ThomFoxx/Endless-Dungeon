@@ -8,6 +8,7 @@ public class Game
 {
     private readonly ConsoleRenderer _renderer;
     private readonly InputManager _inputManager;
+    private DungeonRun _dungeonRun;
 
     private bool _isRunning = true;
 
@@ -15,6 +16,9 @@ public class Game
     {
         _renderer = new ConsoleRenderer();
         _inputManager = new InputManager();
+
+        // Temporary explorer seed until character creation exists.
+        _dungeonRun = new DungeonRun(12345);
     }
 
     public void Run()
@@ -42,6 +46,11 @@ public class Game
         Console.WriteLine("  [Q] Save & Quit");
         Console.WriteLine();
         Console.WriteLine("  [F1] Help");
+
+        Console.WriteLine();
+        Console.ForegroundColor = ConsoleColor.DarkGray;
+        Console.WriteLine("  [X] DEBUG - Destroy Dungeon");
+        Console.ResetColor();
 
         ConsoleKey key = _inputManager.ReadKey();
 
@@ -73,6 +82,10 @@ public class Game
 
             case ConsoleKey.F1:
                 ShowHelp();
+                break;
+
+            case ConsoleKey.X:
+                DestroyDungeonDebug();
                 break;
         }
     }
@@ -113,11 +126,9 @@ public class Game
 
     private void RunDungeonTest()
     {
-        const int testExplorerSeed = 12345;
+        VisibilityManager visibilityManager = new();
 
-        DungeonRun dungeon = new(testExplorerSeed);
-
-        DungeonFloor floor = dungeon.GetCurrentFloor();
+        DungeonFloor floor = _dungeonRun.BeginExpedition();
 
         int playerX = floor.StartX;
         int playerY = floor.StartY;
@@ -128,6 +139,11 @@ public class Game
 
         while (isExploring)
         {
+            visibilityManager.UpdateVisibility(
+                floor,
+                playerX,
+                playerY);
+
             _renderer.DrawDungeon(
                 floor,
                 playerX,
@@ -167,19 +183,28 @@ public class Game
 
                     if (currentTile.Type == TileType.StairsDown)
                     {
-                        floor = dungeon.Descend();
+                        floor = _dungeonRun.Descend();
 
                         playerX = floor.StairsUpX;
                         playerY = floor.StairsUpY;
                     }
                     else if (
                         currentTile.Type == TileType.StairsUp &&
-                        dungeon.CurrentFloorNumber > 1)
+                        _dungeonRun.CurrentFloorNumber > 1)
                     {
-                        floor = dungeon.Ascend();
+                        floor = _dungeonRun.Ascend();
 
                         playerX = floor.StairsDownX;
                         playerY = floor.StairsDownY;
+                    }
+                    else if (
+                        currentTile.Type == TileType.ExitPortal)
+                    {
+                        isExploring = false;
+
+                        ShowDungeonExitMessage();
+
+                        continue;
                     }
 
                     continue;
@@ -198,6 +223,21 @@ public class Game
         }
     }
 
+    private void ShowDungeonExitMessage()
+    {
+        _renderer.Clear();
+        _renderer.WriteTitle("EXPEDITION COMPLETE");
+
+        Console.WriteLine();
+        Console.WriteLine("You step through the portal and return safely.");
+        Console.WriteLine();
+        Console.WriteLine("Your expedition has been completed.");
+        Console.WriteLine();
+        Console.WriteLine("Press any key to return to camp.");
+
+        _inputManager.ReadKey();
+    }
+
     private void TryMovePlayer(DungeonFloor floor, ref int playerX, ref int playerY, int moveX, int moveY)
     {
         int targetX = playerX + moveX;
@@ -210,5 +250,33 @@ public class Game
 
         playerX = targetX;
         playerY = targetY;
+    }
+
+    private void DestroyDungeonDebug()
+    {
+        int oldSeed = _dungeonRun.ExplorerSeed;
+
+        // Simulate a new explorer receiving a completely new dungeon.
+        int newSeed = Random.Shared.Next(
+            int.MinValue,
+            int.MaxValue);
+
+        _dungeonRun = new DungeonRun(newSeed);
+
+        _renderer.Clear();
+        _renderer.WriteTitle("DEBUG - EXPLORER DEATH");
+
+        Console.WriteLine();
+        Console.WriteLine("The current dungeon has been destroyed.");
+        Console.WriteLine();
+        Console.WriteLine($"Old Explorer Seed: {oldSeed}");
+        Console.WriteLine($"New Explorer Seed: {newSeed}");
+        Console.WriteLine();
+        Console.WriteLine("All dungeon floors and exploration data");
+        Console.WriteLine("from the previous explorer are gone.");
+        Console.WriteLine();
+        Console.WriteLine("Press any key to return to camp.");
+
+        _inputManager.ReadKey();
     }
 }

@@ -3,6 +3,7 @@
 public class DungeonFloor
 {
     private readonly Tile[,] _tiles;
+    private readonly List<Room> _rooms = new();
 
     public int FloorNumber { get; }
     public int Seed { get; }
@@ -20,6 +21,13 @@ public class DungeonFloor
 
     public int StairsDownX { get; set; }
     public int StairsDownY { get; set; }
+
+    public bool HasExitPortal { get; set; }
+
+    public int ExitPortalX { get; set; }
+    public int ExitPortalY { get; set; }
+
+    public IReadOnlyList<Room> Rooms => _rooms;
 
     public DungeonFloor(
         int floorNumber,
@@ -80,5 +88,10 @@ public class DungeonFloor
                 _tiles[x, y] = new Tile(TileType.Empty);
             }
         }
+    }
+
+    public void AddRoom(Room room)
+    {
+        _rooms.Add(room);
     }
 }

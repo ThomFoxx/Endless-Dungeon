@@ -55,7 +55,7 @@ public class DungeonGenerator
         floor.StartX = startRoom.CenterX;
         floor.StartY = startRoom.CenterY;
 
-        // Floor 1 is the dungeon entrance, so it has no stairs up.
+        // Floor 1 has no stairs leading upward.
         if (floor.FloorNumber > 1)
         {
             floor.HasStairsUp = true;
@@ -69,16 +69,12 @@ public class DungeonGenerator
                 TileType.StairsUp);
         }
 
-        // Try to put the downward stairs in a room far from
-        // the room where the explorer entered.
         Room downRoom = FindFarthestRoom(
             startRoom,
             rooms);
 
         if (rooms.Count == 1)
         {
-            // Unlikely, but keeps the two stairs separate
-            // if generation only managed to create one room.
             floor.StairsDownX = startRoom.X;
             floor.StairsDownY = startRoom.Y;
         }
@@ -92,6 +88,66 @@ public class DungeonGenerator
             floor.StairsDownX,
             floor.StairsDownY,
             TileType.StairsDown);
+
+        // Every fifth floor provides an opportunity
+        // to safely leave the dungeon.
+        if (floor.FloorNumber % 5 == 0)
+        {
+            PlaceExitPortal(floor);
+        }
+    }
+
+    private void PlaceExitPortal(
+    DungeonFloor floor)
+    {
+        (int X, int Y)[] directions =
+        {
+        (1, 0),
+        (-1, 0),
+        (0, 1),
+        (0, -1)
+    };
+
+        foreach ((int xOffset, int yOffset) in directions)
+        {
+            int portalX =
+                floor.StairsDownX + xOffset;
+
+            int portalY =
+                floor.StairsDownY + yOffset;
+
+            if (!floor.IsInsideBounds(
+                portalX,
+                portalY))
+            {
+                continue;
+            }
+
+            Tile tile = floor.GetTile(
+                portalX,
+                portalY);
+
+            // Only replace ordinary floor.
+            if (tile.Type != TileType.Floor)
+            {
+                continue;
+            }
+
+            floor.HasExitPortal = true;
+
+            floor.ExitPortalX = portalX;
+            floor.ExitPortalY = portalY;
+
+            floor.SetTile(
+                portalX,
+                portalY,
+                TileType.ExitPortal);
+
+            return;
+        }
+
+        throw new InvalidOperationException(
+            $"Could not place an exit portal beside the downstairs on Floor {floor.FloorNumber}.");
     }
 
     private Room FindFarthestRoom(
@@ -149,6 +205,7 @@ public class DungeonGenerator
                 floor.Height - height - 1);
 
             Room newRoom = new(
+                rooms.Count,
                 x,
                 y,
                 width,
@@ -166,6 +223,7 @@ public class DungeonGenerator
                 newRoom);
 
             rooms.Add(newRoom);
+            floor.AddRoom(newRoom);
         }
 
         return rooms;
@@ -187,8 +245,8 @@ public class DungeonGenerator
     }
 
     private void CarveRoom(
-        DungeonFloor floor,
-        Room room)
+    DungeonFloor floor,
+    Room room)
     {
         for (
             int y = room.Y;
@@ -204,6 +262,8 @@ public class DungeonGenerator
                     x,
                     y,
                     TileType.Floor);
+
+                floor.GetTile(x, y).RegionId = room.Id;
             }
         }
     }

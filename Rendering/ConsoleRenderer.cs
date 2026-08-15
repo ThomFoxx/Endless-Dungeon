@@ -33,17 +33,32 @@ public class ConsoleRenderer
         Console.WriteLine($"╚{new string('═', width - 2)}╝");
     }
 
-    public void DrawDungeon(DungeonFloor floor, int playerX, int playerY)
+    public void DrawDungeon(
+    DungeonFloor floor,
+    int playerX,
+    int playerY)
     {
         Console.SetCursorPosition(0, 0);
 
-        Console.WriteLine($"Dungeon Floor {floor.FloorNumber}  |  Seed: {floor.Seed}");
+        Console.WriteLine(
+            $"Dungeon Floor {floor.FloorNumber}  |  Seed: {floor.Seed}");
+
         Console.WriteLine();
 
         for (int y = 0; y < floor.Height; y++)
         {
             for (int x = 0; x < floor.Width; x++)
             {
+                Tile tile = floor.GetTile(x, y);
+
+                // Tiles the explorer has never seen are completely hidden.
+                if (tile.Visibility == VisibilityState.Unseen)
+                {
+                    Console.Write(' ');
+                    continue;
+                }
+
+                // Draw the explorer over the tile they are standing on.
                 if (x == playerX && y == playerY)
                 {
                     Console.ForegroundColor = ConsoleColor.Cyan;
@@ -51,28 +66,55 @@ public class ConsoleRenderer
                     continue;
                 }
 
-                Tile tile = floor.GetTile(x, y);
+                bool isExplored =
+                    tile.Visibility == VisibilityState.Explored;
 
                 switch (tile.Type)
                 {
                     case TileType.Wall:
-                        Console.ForegroundColor = ConsoleColor.DarkGray;
-                        Console.Write(GetWallCharacter(floor, x, y));
+                        Console.ForegroundColor =
+                            isExplored
+                                ? ConsoleColor.DarkGray
+                                : ConsoleColor.Gray;
+
+                        Console.Write(
+                            GetWallCharacter(floor, x, y));
                         break;
 
                     case TileType.Floor:
-                        Console.ForegroundColor = ConsoleColor.Gray;
+                        Console.ForegroundColor =
+                            isExplored
+                                ? ConsoleColor.DarkGray
+                                : ConsoleColor.Gray;
+
                         Console.Write('·');
                         break;
 
                     case TileType.StairsUp:
-                        Console.ForegroundColor = ConsoleColor.White;
-                        Console.Write('▲'); // U+25B2
+                        Console.ForegroundColor =
+                            isExplored
+                                ? ConsoleColor.DarkGray
+                                : ConsoleColor.White;
+
+                        Console.Write('▲');
                         break;
 
                     case TileType.StairsDown:
-                        Console.ForegroundColor = ConsoleColor.White;
-                        Console.Write('▼'); // U+25BC
+                        Console.ForegroundColor =
+                            isExplored
+                                ? ConsoleColor.DarkGray
+                                : ConsoleColor.White;
+
+                        Console.Write('▼');
+                        break;
+
+                    case TileType.ExitPortal:
+                        Console.ForegroundColor =
+                            isExplored
+                                ? ConsoleColor.DarkGray
+                                : ConsoleColor.Cyan;
+
+                        Console.Write('֍');
                         break;
 
                     default:
@@ -88,7 +130,7 @@ public class ConsoleRenderer
 
         Console.WriteLine();
         Console.WriteLine("WASD / Arrow Keys - Move");
-        Console.WriteLine("E - Use Stairs");
+        Console.WriteLine("E - Interact / Use Stairs / Exit");
         Console.WriteLine("Escape - Return to test camp");
     }
 

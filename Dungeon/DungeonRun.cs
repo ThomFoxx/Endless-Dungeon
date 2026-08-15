@@ -20,6 +20,13 @@ public class DungeonRun
         _floors = new Dictionary<int, DungeonFloor>();
     }
 
+    public DungeonFloor BeginExpedition()
+    {
+        CurrentFloorNumber = 1;
+
+        return GetFloor(CurrentFloorNumber);
+    }
+
     public DungeonFloor GetCurrentFloor()
     {
         return GetFloor(CurrentFloorNumber);
