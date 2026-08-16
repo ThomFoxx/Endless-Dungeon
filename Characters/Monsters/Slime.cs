@@ -15,7 +15,7 @@ public class Slime : Monster
         double inactivityChance)
         : base(
             name: "Slime",
-            glyph: '●',
+            glyph: "●",
             color: ConsoleColor.Green,
             x: x,
             y: y,

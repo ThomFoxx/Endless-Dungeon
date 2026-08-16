@@ -8,11 +8,9 @@ public class HonorBoard
 
     public IReadOnlyList<HonorRecord> Records => _records;
 
-    public void AddExplorer(
-        Explorer explorer)
+    public void AddExplorer(Explorer explorer)
     {
-        string causeOfDeath =
-            $"Slain by {explorer.LastDamageSource}";
+        string causeOfDeath = $"Slain by {explorer.LastDamageSource}";
 
         HonorRecord record = new(
             explorer.Name,
@@ -23,8 +21,7 @@ public class HonorBoard
         _records.Add(record);
     }
 
-    public void AddDebugExplorer(
-        Explorer explorer)
+    public void AddDebugExplorer(Explorer explorer)
     {
         HonorRecord record = new(
             explorer.Name,
@@ -33,5 +30,15 @@ public class HonorBoard
             "Lost to the Debug Void");
 
         _records.Add(record);
+    }
+
+    public void AddRecord(HonorRecord record)
+    {
+        _records.Add(record);
+    }
+
+    public void Clear()
+    {
+        _records.Clear();
     }
 }

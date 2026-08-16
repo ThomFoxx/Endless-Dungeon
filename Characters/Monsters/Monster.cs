@@ -6,7 +6,7 @@ namespace EndlessDungeon.Characters.Monsters;
 public abstract class Monster
 {
     public string Name { get; }
-    public char Glyph { get; }
+    public string Glyph { get; }
     public ConsoleColor Color { get; }
 
     public int X { get; private set; }
@@ -24,7 +24,7 @@ public abstract class Monster
 
     protected Monster(
         string name,
-        char glyph,
+        string glyph,
         ConsoleColor color,
         int x,
         int y,

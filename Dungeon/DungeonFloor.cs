@@ -1,11 +1,14 @@
-﻿namespace EndlessDungeon.Dungeon;
-using EndlessDungeon.Characters.Monsters;
+﻿using EndlessDungeon.Characters.Monsters;
+using EndlessDungeon.Items;
+
+namespace EndlessDungeon.Dungeon;
 
 public class DungeonFloor
 {
     private readonly Tile[,] _tiles;
     private readonly List<Room> _rooms = new();
     private readonly List<Monster> _monsters = new();
+    private readonly List<GroundItem> _groundItems = new();
 
     public int FloorNumber { get; }
     public int Seed { get; }
@@ -31,12 +34,9 @@ public class DungeonFloor
 
     public IReadOnlyList<Room> Rooms => _rooms;
     public IReadOnlyList<Monster> Monsters => _monsters;
+    public IReadOnlyList<GroundItem> GroundItems => _groundItems;
 
-    public DungeonFloor(
-        int floorNumber,
-        int width,
-        int height,
-        int seed)
+    public DungeonFloor(int floorNumber, int width, int height, int seed)
     {
         FloorNumber = floorNumber;
         Width = width;
@@ -115,5 +115,20 @@ public class DungeonFloor
     public void RemoveMonster(Monster monster)
     {
         _monsters.Remove(monster);
+    }
+
+    public void AddGroundItem(GroundItem groundItem)
+    {
+        _groundItems.Add(groundItem);
+    }
+
+    public GroundItem? GetGroundItemAt(int x, int y)
+    {
+        return _groundItems.FirstOrDefault(item => item.X == x && item.Y == y);
+    }
+
+    public void RemoveGroundItem(GroundItem groundItem)
+    {
+        _groundItems.Remove(groundItem);
     }
 }

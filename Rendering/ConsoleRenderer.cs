@@ -3,6 +3,7 @@ using EndlessDungeon.Characters;
 using System.Text;
 using EndlessDungeon.Characters.Monsters;
 using EndlessDungeon.UI;
+using EndlessDungeon.Items;
 
 namespace EndlessDungeon.Rendering;
 
@@ -22,6 +23,11 @@ public class ConsoleRenderer
     public void Clear()
     {
         Console.Clear();
+
+        // A full clear means there is no previous frame
+        // for the renderer to clean up.
+        _lastRenderWidth = 0;
+        _lastRenderHeight = 0;
     }
 
     public void WriteTitle(string title)
@@ -40,66 +46,41 @@ public class ConsoleRenderer
         Console.WriteLine($"╚{new string('═', width - 2)}╝");
     }
 
-    public void DrawDungeon(
-    DungeonFloor floor,
-    Explorer explorer,
-    ActionLog actionLog)
+    public void DrawDungeon(DungeonFloor floor, Explorer explorer, ActionLog actionLog)
     {
-        string floorHeader =
-            $"Dungeon Floor {floor.FloorNumber}  |  Seed: {floor.Seed}";
+        string floorHeader = $"Dungeon Floor {floor.FloorNumber}  |  Seed: {floor.Seed}";
+        string explorerHeader = $"{explorer.Name}  |  HP: {explorer.CurrentHealth}/{explorer.MaxHealth}";
 
-        string explorerHeader =
-            $"{explorer.Name}  |  HP: {explorer.CurrentHealth}/{explorer.MaxHealth}";
+        const string movementText = "WASD / Arrow Keys - Move / Attack";
+        const string pickupText = "G - Pick Up Item";
+        const string interactText = "E - Interact / Use Stairs / Exit";
+        const string escapeText = "Escape - Return to test camp";
+        const string actionHeader = "Recent Actions:";
+        const string inventoryText = "I - Inventory";
 
-        const string movementText =
-            "WASD / Arrow Keys - Move / Attack";
+        int logWidth = actionLog.Entries.Count > 0
+            ? actionLog.Entries.Max(entry => entry.Length + 2)
+            : 0;
 
-        const string interactText =
-            "E - Interact / Use Stairs / Exit";
-
-        const string escapeText =
-            "Escape - Return to test camp";
-
-        const string actionHeader =
-            "Recent Actions:";
-
-        int logWidth =
-            actionLog.Entries.Count > 0
-                ? actionLog.Entries.Max(
-                    entry => entry.Length + 2)
-                : 0;
-
-        int currentRenderWidth = new[]
-        {
-        floor.Width,
-        floorHeader.Length,
-        explorerHeader.Length,
-        movementText.Length,
-        interactText.Length,
-        escapeText.Length,
-        actionHeader.Length,
-        logWidth
+        int currentRenderWidth = new[] {
+            floor.Width,
+            floorHeader.Length,
+            explorerHeader.Length,
+            movementText.Length,
+            pickupText.Length,
+            inventoryText.Length,
+            interactText.Length,
+            escapeText.Length,
+            actionHeader.Length,
+            logWidth
         }.Max();
 
-        int renderWidth = Math.Max(
-            currentRenderWidth,
-            _lastRenderWidth);
+        int renderWidth = Math.Max(currentRenderWidth, _lastRenderWidth);
 
-        // 3 header rows
-        // + map height
-        // + 1 blank row
-        // + 1 action-log header
-        // + 4 action-log rows
-        // + 1 blank row
-        // + 3 control rows
-        int requiredHeight =
-            floor.Height + 13;
+        // Header + map + action log + four control lines.
+        int requiredHeight = floor.Height + 15;
 
-        // Add one extra row because some rendering helpers
-        // place the cursor immediately below the final line.
-        bool hasEnoughBuffer = EnsureConsoleBuffer(
-            renderWidth + 1,
-            requiredHeight + 1);
+        bool hasEnoughBuffer = EnsureConsoleBuffer(renderWidth + 1, requiredHeight + 1);
 
         if (!hasEnoughBuffer)
         {
@@ -112,27 +93,13 @@ public class ConsoleRenderer
 
         int row = 0;
 
-        WritePaddedLine(
-            floorHeader,
-            row++,
-            renderWidth);
+        WritePaddedLine(floorHeader, row++, renderWidth);
+        WritePaddedLine(explorerHeader, row++, renderWidth);
+        WritePaddedLine(string.Empty, row++, renderWidth);
 
-        WritePaddedLine(
-            explorerHeader,
-            row++,
-            renderWidth);
-
-        WritePaddedLine(
-            string.Empty,
-            row++,
-            renderWidth);
-
-        // Dungeon map.
         for (int y = 0; y < floor.Height; y++)
         {
-            Console.SetCursorPosition(
-                0,
-                row);
+            Console.SetCursorPosition(0, row);
 
             for (int x = 0; x < floor.Width; x++)
             {
@@ -145,80 +112,74 @@ public class ConsoleRenderer
                     continue;
                 }
 
+                // Explorer has highest rendering priority.
                 if (x == explorer.X && y == explorer.Y)
                 {
-                    Console.ForegroundColor =
-                        ConsoleColor.Cyan;
-
+                    Console.ForegroundColor = ConsoleColor.Cyan;
                     Console.Write(explorer.Glyph);
                     continue;
                 }
 
-                Monster? monster =
-                    floor.GetMonsterAt(x, y);
+                Monster? monster = floor.GetMonsterAt(x, y);
 
-                if (
-                    tile.Visibility == VisibilityState.Visible &&
-                    monster != null)
+                // Monsters are only shown while currently visible.
+                if (tile.Visibility == VisibilityState.Visible && monster != null)
                 {
-                    Console.ForegroundColor =
-                        monster.Color;
-
+                    Console.ForegroundColor = monster.Color;
                     Console.Write(monster.Glyph);
                     continue;
                 }
 
-                bool isExplored =
-                    tile.Visibility ==
-                    VisibilityState.Explored;
+                GroundItem? groundItem = floor.GetGroundItemAt(x, y);
+
+                // Like monsters, items are only rendered while currently visible.
+                if (tile.Visibility == VisibilityState.Visible && groundItem != null)
+                {
+                    Console.ForegroundColor = groundItem.Item.Color;
+                    Console.Write(groundItem.Item.Glyph);
+                    continue;
+                }
+
+                bool isExplored = tile.Visibility == VisibilityState.Explored;
 
                 switch (tile.Type)
                 {
                     case TileType.Wall:
-                        Console.ForegroundColor =
-                            isExplored
-                                ? ConsoleColor.DarkGray
-                                : ConsoleColor.Gray;
+                        Console.ForegroundColor = isExplored
+                            ? ConsoleColor.DarkGray
+                            : ConsoleColor.Gray;
 
-                        Console.Write(
-                            GetWallCharacter(
-                                floor,
-                                x,
-                                y));
+                        Console.Write(GetWallCharacter(floor, x, y));
                         break;
 
                     case TileType.Floor:
-                        Console.ForegroundColor =
-                            isExplored
-                                ? ConsoleColor.DarkGray
-                                : ConsoleColor.Gray;
+                        Console.ForegroundColor = isExplored
+                            ? ConsoleColor.DarkGray
+                            : ConsoleColor.Gray;
 
                         Console.Write('·');
                         break;
 
                     case TileType.StairsUp:
-                        Console.ForegroundColor =
-                            isExplored
-                                ? ConsoleColor.DarkGray
-                                : ConsoleColor.White;
+                        Console.ForegroundColor = isExplored
+                            ? ConsoleColor.DarkGray
+                            : ConsoleColor.White;
 
                         Console.Write('▲');
                         break;
 
                     case TileType.StairsDown:
-                        Console.ForegroundColor =
-                            isExplored
-                                ? ConsoleColor.DarkGray
-                                : ConsoleColor.White;
+                        Console.ForegroundColor = isExplored
+                            ? ConsoleColor.DarkGray
+                            : ConsoleColor.White;
 
                         Console.Write('▼');
                         break;
 
                     case TileType.ExitPortal:
-                        Console.ForegroundColor =
-                            isExplored
-                                ? ConsoleColor.DarkGray
-                                : ConsoleColor.Cyan;
+                        Console.ForegroundColor = isExplored
+                            ? ConsoleColor.DarkGray
+                            : ConsoleColor.Cyan;
 
                         Console.Write('֍');
                         break;
@@ -234,84 +195,43 @@ public class ConsoleRenderer
 
             if (renderWidth > floor.Width)
             {
-                Console.Write(
-                    new string(
-                        ' ',
-                        renderWidth - floor.Width));
+                Console.Write(new string(' ', renderWidth - floor.Width));
             }
 
             row++;
         }
 
-        WritePaddedLine(
-            string.Empty,
-            row++,
-            renderWidth);
-
-        // Action log.
-        WritePaddedLine(
-            actionHeader,
-            row++,
-            renderWidth);
+        WritePaddedLine(string.Empty, row++, renderWidth);
+        WritePaddedLine(actionHeader, row++, renderWidth);
 
         for (int i = 0; i < 4; i++)
         {
-            string message =
-                i < actionLog.Entries.Count
-                    ? $"  {actionLog.Entries[i]}"
-                    : string.Empty;
+            string message = i < actionLog.Entries.Count
+                ? $"  {actionLog.Entries[i]}"
+                : string.Empty;
 
-            WritePaddedLine(
-                message,
-                row++,
-                renderWidth);
+            WritePaddedLine(message, row++, renderWidth);
         }
 
-        WritePaddedLine(
-            string.Empty,
-            row++,
-            renderWidth);
+        WritePaddedLine(string.Empty, row++, renderWidth);
+        WritePaddedLine(movementText, row++, renderWidth);
+        WritePaddedLine(pickupText, row++, renderWidth);
+        WritePaddedLine(inventoryText, row++, renderWidth);
+        WritePaddedLine(interactText, row++, renderWidth);
+        WritePaddedLine(escapeText, row++, renderWidth);
 
-        WritePaddedLine(
-            movementText,
-            row++,
-            renderWidth);
-
-        WritePaddedLine(
-            interactText,
-            row++,
-            renderWidth);
-
-        WritePaddedLine(
-            escapeText,
-            row++,
-            renderWidth);
-
-        // Erase rows left over from a previously taller frame.
-        for (
-            int clearRow = row;
-            clearRow < _lastRenderHeight;
-            clearRow++)
+        for (int clearRow = row; clearRow < _lastRenderHeight; clearRow++)
         {
-            WritePaddedLine(
-                string.Empty,
-                clearRow,
-                renderWidth);
+            WritePaddedLine(string.Empty, clearRow, renderWidth);
         }
 
-        _lastRenderWidth =
-            currentRenderWidth;
-
-        _lastRenderHeight =
-            row;
+        _lastRenderWidth = currentRenderWidth;
+        _lastRenderHeight = row;
 
         Console.SetCursorPosition(0, Math.Min(row, Console.BufferHeight - 1));
     }
 
-    private char GetWallCharacter(
-    DungeonFloor floor,
-    int x,
-    int y)
+    private char GetWallCharacter(DungeonFloor floor, int x, int y)
     {
         bool north = HasNorthWallConnection(floor, x, y);
         bool south = HasSouthWallConnection(floor, x, y);
@@ -340,27 +260,47 @@ public class ConsoleRenderer
             (true, false, false, true) => '┘',
 
             // Wall ends
-            (true, false, false, false) => '│',
-            (false, true, false, false) => '│',
-            (false, false, true, false) => '─',
-            (false, false, false, true) => '─',
+            (true, false, false, false) => '╵',
+            (false, true, false, false) => '╷',
+            (false, false, true, false) => '╶',
+            (false, false, false, true) => '╴',
 
             // Unusual isolated geometry
             _ => GetIsolatedWallCharacter(floor, x, y)
         };
     }
 
-    private bool HasNorthWallConnection(
-    DungeonFloor floor,
-    int x,
-    int y)
+    private bool FormsOpenCorner( DungeonFloor floor, int x, int y, int directionX, int directionY)
+    {
+        return IsOpenSpace(
+            floor,
+            x + directionX,
+            y + directionY);
+    }
+
+    private bool HasNorthWallConnection(DungeonFloor floor, int x, int y)
     {
         if (!IsWall(floor, x, y - 1))
         {
             return false;
         }
 
-        // Look for floor alongside the pair of vertical wall tiles.
+        if (HasVerticalDiagonalPinch(floor, x, y - 1, y))
+        {
+            bool formsWestCorner =
+                IsWall(floor, x - 1, y) &&
+                FormsOpenCorner(floor, x, y, -1, -1);
+
+            bool formsEastCorner =
+                IsWall(floor, x + 1, y) &&
+                FormsOpenCorner(floor, x, y, 1, -1);
+
+            if (!formsWestCorner && !formsEastCorner)
+            {
+                return false;
+            }
+        }
+
         return
             IsOpenSpace(floor, x - 1, y) ||
             IsOpenSpace(floor, x - 1, y - 1) ||
@@ -368,14 +308,27 @@ public class ConsoleRenderer
             IsOpenSpace(floor, x + 1, y - 1);
     }
 
-    private bool HasSouthWallConnection(
-        DungeonFloor floor,
-        int x,
-        int y)
+    private bool HasSouthWallConnection(DungeonFloor floor, int x, int y)
     {
         if (!IsWall(floor, x, y + 1))
         {
             return false;
+        }
+
+        if (HasVerticalDiagonalPinch(floor, x, y, y + 1))
+        {
+            bool formsWestCorner =
+                IsWall(floor, x - 1, y) &&
+                FormsOpenCorner(floor, x, y, -1, 1);
+
+            bool formsEastCorner =
+                IsWall(floor, x + 1, y) &&
+                FormsOpenCorner(floor, x, y, 1, 1);
+
+            if (!formsWestCorner && !formsEastCorner)
+            {
+                return false;
+            }
         }
 
         return
@@ -385,17 +338,29 @@ public class ConsoleRenderer
             IsOpenSpace(floor, x + 1, y + 1);
     }
 
-    private bool HasEastWallConnection(
-        DungeonFloor floor,
-        int x,
-        int y)
+    private bool HasEastWallConnection(DungeonFloor floor, int x, int y)
     {
         if (!IsWall(floor, x + 1, y))
         {
             return false;
         }
 
-        // Look for floor above or below the pair of horizontal wall tiles.
+        if (HasHorizontalDiagonalPinch(floor, x, x + 1, y))
+        {
+            bool formsNorthCorner =
+                IsWall(floor, x, y - 1) &&
+                FormsOpenCorner(floor, x, y, 1, -1);
+
+            bool formsSouthCorner =
+                IsWall(floor, x, y + 1) &&
+                FormsOpenCorner(floor, x, y, 1, 1);
+
+            if (!formsNorthCorner && !formsSouthCorner)
+            {
+                return false;
+            }
+        }
+
         return
             IsOpenSpace(floor, x, y - 1) ||
             IsOpenSpace(floor, x + 1, y - 1) ||
@@ -403,14 +368,27 @@ public class ConsoleRenderer
             IsOpenSpace(floor, x + 1, y + 1);
     }
 
-    private bool HasWestWallConnection(
-        DungeonFloor floor,
-        int x,
-        int y)
+    private bool HasWestWallConnection(DungeonFloor floor, int x, int y)
     {
         if (!IsWall(floor, x - 1, y))
         {
             return false;
+        }
+
+        if (HasHorizontalDiagonalPinch(floor, x - 1, x, y))
+        {
+            bool formsNorthCorner =
+                IsWall(floor, x, y - 1) &&
+                FormsOpenCorner(floor, x, y, -1, -1);
+
+            bool formsSouthCorner =
+                IsWall(floor, x, y + 1) &&
+                FormsOpenCorner(floor, x, y, -1, 1);
+
+            if (!formsNorthCorner && !formsSouthCorner)
+            {
+                return false;
+            }
         }
 
         return
@@ -418,6 +396,50 @@ public class ConsoleRenderer
             IsOpenSpace(floor, x - 1, y - 1) ||
             IsOpenSpace(floor, x, y + 1) ||
             IsOpenSpace(floor, x - 1, y + 1);
+    }
+
+    private bool HasVerticalDiagonalPinch(DungeonFloor floor, int x, int upperY, int lowerY)
+    {
+        bool upperLeftFloor = IsOpenSpace(floor, x - 1, upperY);
+        bool upperRightFloor = IsOpenSpace(floor, x + 1, upperY);
+        bool lowerLeftFloor = IsOpenSpace(floor, x - 1, lowerY);
+        bool lowerRightFloor = IsOpenSpace(floor, x + 1, lowerY);
+
+        bool fallsRight =
+            IsWall(floor, x - 1, upperY) &&
+            upperRightFloor &&
+            lowerLeftFloor &&
+            IsWall(floor, x + 1, lowerY);
+
+        bool fallsLeft =
+            upperLeftFloor &&
+            IsWall(floor, x + 1, upperY) &&
+            IsWall(floor, x - 1, lowerY) &&
+            lowerRightFloor;
+
+        return fallsRight || fallsLeft;
+    }
+
+    private bool HasHorizontalDiagonalPinch(DungeonFloor floor, int leftX, int rightX, int y)
+    {
+        bool upperLeftFloor = IsOpenSpace(floor, leftX, y - 1);
+        bool upperRightFloor = IsOpenSpace(floor, rightX, y - 1);
+        bool lowerLeftFloor = IsOpenSpace(floor, leftX, y + 1);
+        bool lowerRightFloor = IsOpenSpace(floor, rightX, y + 1);
+
+        bool fallsRight =
+            IsWall(floor, leftX, y - 1) &&
+            upperRightFloor &&
+            lowerLeftFloor &&
+            IsWall(floor, rightX, y + 1);
+
+        bool fallsLeft =
+            upperLeftFloor &&
+            IsWall(floor, rightX, y - 1) &&
+            IsWall(floor, leftX, y + 1) &&
+            lowerRightFloor;
+
+        return fallsRight || fallsLeft;
     }
 
     private bool IsWall(
@@ -498,8 +520,7 @@ public class ConsoleRenderer
         }
     }
 
-    public void FlashExplorerHit(
-    Explorer explorer)
+    public void FlashExplorerHit(Explorer explorer)
     {
         string explorerHeader =
             $"{explorer.Name}  |  HP: {explorer.CurrentHealth}/{explorer.MaxHealth}";
@@ -558,6 +579,34 @@ public class ConsoleRenderer
             Math.Min(
                 _lastRenderHeight,
                 Console.BufferHeight - 1));
+    }
+
+    public void FlashMonsterHit(Monster monster)
+    {
+        int screenX = monster.X;
+        int screenY = DungeonMapStartRow + monster.Y;
+
+        // Briefly flash the monster with a red background.
+        Console.SetCursorPosition(screenX, screenY);
+
+        Console.ForegroundColor = ConsoleColor.White;
+        Console.BackgroundColor = ConsoleColor.DarkRed;
+        Console.Write(monster.Glyph);
+
+        Thread.Sleep(90);
+
+        // Restore the monster's normal appearance.
+        Console.SetCursorPosition(screenX, screenY);
+
+        Console.ForegroundColor = monster.Color;
+        Console.BackgroundColor = ConsoleColor.Black;
+        Console.Write(monster.Glyph);
+
+        Console.ResetColor();
+
+        Console.SetCursorPosition(
+            0,
+            Math.Min(_lastRenderHeight, Console.BufferHeight - 1));
     }
 
     private bool EnsureConsoleBuffer(int requiredWidth, int requiredHeight)
