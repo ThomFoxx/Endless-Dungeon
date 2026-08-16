@@ -131,4 +131,14 @@ public class DungeonFloor
     {
         _groundItems.Remove(groundItem);
     }
+
+    public void ClearMonsters()
+    {
+        _monsters.Clear();
+    }
+
+    public void ClearGroundItems()
+    {
+        _groundItems.Clear();
+    }
 }

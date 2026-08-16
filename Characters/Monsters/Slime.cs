@@ -9,24 +9,19 @@ public class Slime : Monster
 
     public double InactivityChance { get; }
 
-    public Slime(
-        int x,
-        int y,
-        double inactivityChance)
-        : base(
-            name: "Slime",
-            glyph: "●",
-            color: ConsoleColor.Green,
-            x: x,
-            y: y,
-            maxHealth: 6,
-            attack: 2,
-            defense: 0)
+    public Slime(int x, int y, double inactivityChance)
+    : base(
+        MonsterIds.Slime,
+        "Slime",
+        "●",
+        ConsoleColor.Green,
+        x,
+        y,
+        6,
+        2,
+        0)
     {
-        InactivityChance = Math.Clamp(
-            inactivityChance,
-            0.30,
-            0.50);
+        InactivityChance = Math.Clamp(inactivityChance, 0.30, 0.50);
     }
 
     protected override void PerformTurn(

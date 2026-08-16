@@ -5,6 +5,7 @@ namespace EndlessDungeon.Characters.Monsters;
 
 public abstract class Monster
 {
+    public string Id { get; }
     public string Name { get; }
     public string Glyph { get; }
     public ConsoleColor Color { get; }
@@ -22,16 +23,10 @@ public abstract class Monster
 
     public bool HasActedThisRound { get; private set; }
 
-    protected Monster(
-        string name,
-        string glyph,
-        ConsoleColor color,
-        int x,
-        int y,
-        int maxHealth,
-        int attack,
-        int defense)
+    protected Monster(string id, string name, string glyph, ConsoleColor color,
+    int x, int y, int maxHealth, int attack, int defense)
     {
+        Id = id;
         Name = name;
         Glyph = glyph;
         Color = color;
@@ -52,6 +47,11 @@ public abstract class Monster
     {
         X = x;
         Y = y;
+    }
+
+    public void RestoreHealth(int currentHealth)
+    {
+        CurrentHealth = Math.Clamp(currentHealth, 0, MaxHealth);
     }
 
     public void TakeDamage(int damage)

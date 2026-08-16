@@ -12,6 +12,8 @@ public class DungeonRun
 
     public int CurrentFloorNumber { get; private set; } = 1;
 
+    public IReadOnlyCollection<DungeonFloor> GeneratedFloors => _floors.Values;
+
     public DungeonRun(int explorerSeed)
     {
         ExplorerSeed = explorerSeed;
@@ -73,5 +75,10 @@ public class DungeonRun
             newFloor);
 
         return newFloor;
+    }
+
+    public DungeonFloor GetOrCreateFloor(int floorNumber)
+    {
+        return GetFloor(floorNumber);
     }
 }

@@ -2,11 +2,12 @@
 
 public class SaveData
 {
-    public int Version { get; set; } = 1;
+    public int Version { get; set; } = 2;
 
     public ExplorerSaveData Explorer { get; set; } = new();
     public List<StorageStackSaveData> Storage { get; set; } = new();
     public List<HonorRecordSaveData> HonorBoard { get; set; } = new();
+    public List<DungeonFloorSaveData> DungeonFloors { get; set; } = new();
 }
 
 public class ExplorerSaveData
@@ -37,4 +38,38 @@ public class HonorRecordSaveData
     public int Level { get; set; }
     public int DeepestFloor { get; set; }
     public string CauseOfDeath { get; set; } = string.Empty;
+}
+
+public class DungeonFloorSaveData
+{
+    public int FloorNumber { get; set; }
+
+    public List<TilePositionSaveData> ExploredTiles { get; set; } = new();
+    public List<MonsterSaveData> Monsters { get; set; } = new();
+    public List<GroundItemSaveData> GroundItems { get; set; } = new();
+}
+
+public class TilePositionSaveData
+{
+    public int X { get; set; }
+    public int Y { get; set; }
+}
+
+public class MonsterSaveData
+{
+    public string MonsterId { get; set; } = string.Empty;
+
+    public int X { get; set; }
+    public int Y { get; set; }
+    public int CurrentHealth { get; set; }
+
+    public double? InactivityChance { get; set; }
+}
+
+public class GroundItemSaveData
+{
+    public string ItemId { get; set; } = string.Empty;
+
+    public int X { get; set; }
+    public int Y { get; set; }
 }
