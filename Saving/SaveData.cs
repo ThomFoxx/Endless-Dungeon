@@ -2,7 +2,7 @@
 
 public class SaveData
 {
-    public int Version { get; set; } = 2;
+    public int Version { get; set; } = 3;
 
     public ExplorerSaveData Explorer { get; set; } = new();
     public List<StorageStackSaveData> Storage { get; set; } = new();
@@ -47,6 +47,7 @@ public class DungeonFloorSaveData
     public List<TilePositionSaveData> ExploredTiles { get; set; } = new();
     public List<MonsterSaveData> Monsters { get; set; } = new();
     public List<GroundItemSaveData> GroundItems { get; set; } = new();
+    public List<ChestSaveData> Chests { get; set; } = new();
 }
 
 public class TilePositionSaveData
@@ -63,7 +64,13 @@ public class MonsterSaveData
     public int Y { get; set; }
     public int CurrentHealth { get; set; }
 
+    public int? HomeRegionId { get; set; }
+
     public double? InactivityChance { get; set; }
+
+    public int? LastSeenX { get; set; }
+    public int? LastSeenY { get; set; }
+    public List<string> LootItemIds { get; set; } = new();
 }
 
 public class GroundItemSaveData
@@ -72,4 +79,14 @@ public class GroundItemSaveData
 
     public int X { get; set; }
     public int Y { get; set; }
+}
+
+public class ChestSaveData
+{
+    public int X { get; set; }
+    public int Y { get; set; }
+
+    public bool IsOpened { get; set; }
+
+    public List<string> ItemIds { get; set; } = new();
 }

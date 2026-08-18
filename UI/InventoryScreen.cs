@@ -11,10 +11,7 @@ public class InventoryScreen
     private readonly InputManager _inputManager;
     private readonly ActionLog _actionLog;
 
-    public InventoryScreen(
-        ConsoleRenderer renderer,
-        InputManager inputManager,
-        ActionLog actionLog)
+    public InventoryScreen(ConsoleRenderer renderer, InputManager inputManager, ActionLog actionLog)
     {
         _renderer = renderer;
         _inputManager = inputManager;
@@ -134,9 +131,14 @@ public class InventoryScreen
     private void WriteExplorerStats(Explorer explorer)
     {
         Console.WriteLine();
-        Console.WriteLine(explorer.Name);
-        Console.WriteLine($"Attack: {explorer.Attack}");
-        Console.WriteLine($"Defense: {explorer.Defense}");
+        Console.WriteLine($"{explorer.Name} - Level {explorer.Level}");
+        Console.WriteLine();
+
+        Console.WriteLine(
+            $"Health: {explorer.CurrentHealth}/{explorer.MaxHealth}    " +
+            $"Attack: {explorer.Attack}    " +
+            $"Defense: {explorer.Defense}");
+
         Console.WriteLine();
 
         Console.Write("Weapon: ");
@@ -177,7 +179,6 @@ public class InventoryScreen
         Console.WriteLine($"Backpack Items: {explorer.Inventory.Count}");
         Console.WriteLine();
     }
-
     private void WriteEmptyInventory(string statusMessage)
     {
         Console.WriteLine("Your inventory is empty.");
@@ -252,10 +253,7 @@ public class InventoryScreen
         Console.WriteLine("I / Escape - Return");
     }
 
-    private bool HandleInventoryAction(
-        Explorer explorer,
-        Item item,
-        out string statusMessage)
+    private bool HandleInventoryAction(Explorer explorer, Item item, out string statusMessage)
     {
         switch (item)
         {

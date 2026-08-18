@@ -13,6 +13,8 @@ public class ConsoleRenderer
     private int _lastRenderHeight;
     private const int DungeonMapStartRow = 3;
 
+    public bool DebugRevealDungeon { get; set; }
+
     public void Initialize()
     {
         Console.OutputEncoding = Encoding.UTF8;
@@ -105,9 +107,8 @@ public class ConsoleRenderer
             {
                 Tile tile = floor.GetTile(x, y);
 
-                if (tile.Visibility == VisibilityState.Unseen)
+                if (!DebugRevealDungeon && tile.Visibility == VisibilityState.Unseen)
                 {
-                    Console.ResetColor();
                     Console.Write(' ');
                     continue;
                 }
@@ -123,17 +124,27 @@ public class ConsoleRenderer
                 Monster? monster = floor.GetMonsterAt(x, y);
 
                 // Monsters are only shown while currently visible.
-                if (tile.Visibility == VisibilityState.Visible && monster != null)
+                if ((DebugRevealDungeon || tile.Visibility == VisibilityState.Visible) && monster != null)
                 {
                     Console.ForegroundColor = monster.Color;
                     Console.Write(monster.Glyph);
                     continue;
                 }
 
+                Chest? chest = floor.GetChestAt(x, y);
+
+                if (chest != null && (DebugRevealDungeon || tile.Visibility == VisibilityState.Visible))
+                {
+                    Console.ForegroundColor = chest.Color;
+                    Console.Write(chest.Glyph);
+                    Console.ResetColor();
+                    continue;
+                }
+
                 GroundItem? groundItem = floor.GetGroundItemAt(x, y);
 
                 // Like monsters, items are only rendered while currently visible.
-                if (tile.Visibility == VisibilityState.Visible && groundItem != null)
+                if ((DebugRevealDungeon || tile.Visibility == VisibilityState.Visible) && groundItem != null)
                 {
                     Console.ForegroundColor = groundItem.Item.Color;
                     Console.Write(groundItem.Item.Glyph);
@@ -270,7 +281,7 @@ public class ConsoleRenderer
         };
     }
 
-    private bool FormsOpenCorner( DungeonFloor floor, int x, int y, int directionX, int directionY)
+    private bool FormsOpenCorner(DungeonFloor floor, int x, int y, int directionX, int directionY)
     {
         return IsOpenSpace(
             floor,
@@ -442,10 +453,7 @@ public class ConsoleRenderer
         return fallsRight || fallsLeft;
     }
 
-    private bool IsWall(
-    DungeonFloor floor,
-    int x,
-    int y)
+    private bool IsWall(DungeonFloor floor, int x, int y)
     {
         if (!floor.IsInsideBounds(x, y))
         {
@@ -455,10 +463,7 @@ public class ConsoleRenderer
         return floor.GetTile(x, y).Type == TileType.Wall;
     }
 
-    private bool IsOpenSpace(
-        DungeonFloor floor,
-        int x,
-        int y)
+    private bool IsOpenSpace(DungeonFloor floor, int x, int y)
     {
         if (!floor.IsInsideBounds(x, y))
         {
@@ -468,10 +473,7 @@ public class ConsoleRenderer
         return floor.GetTile(x, y).IsWalkable;
     }
 
-    private char GetIsolatedWallCharacter(
-    DungeonFloor floor,
-    int x,
-    int y)
+    private char GetIsolatedWallCharacter(DungeonFloor floor, int x, int y)
     {
         bool north = IsOpenSpace(floor, x, y - 1);
         bool south = IsOpenSpace(floor, x, y + 1);
@@ -495,10 +497,7 @@ public class ConsoleRenderer
         return '■';
     }
 
-    private void WritePaddedLine(
-    string text,
-    int row,
-    int width)
+    private void WritePaddedLine(string text, int row, int width)
     {
         Console.SetCursorPosition(
             0,

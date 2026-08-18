@@ -341,6 +341,13 @@ public class Game
                 case ConsoleKey.E:
                     Tile currentTile = floor.GetTile(_explorer.X, _explorer.Y);
 
+                    if (TryOpenAdjacentChest(floor))
+                    {
+                        BeginMonsterRound(floor);
+                        RunMonsterTurns(floor);
+                        continue;
+                    }
+
                     if (currentTile.Type == TileType.StairsDown)
                     {
                         floor = _dungeonRun.Descend();
@@ -368,6 +375,17 @@ public class Game
 
                         continue;
                     }
+
+                    continue;
+
+                case ConsoleKey.F2:
+                    _renderer.DebugRevealDungeon =
+                        !_renderer.DebugRevealDungeon;
+
+                    _actionLog.Add(
+                        _renderer.DebugRevealDungeon
+                            ? "DEBUG: Dungeon reveal enabled."
+                            : "DEBUG: Dungeon reveal disabled.");
 
                     continue;
 
@@ -432,6 +450,14 @@ public class Game
             return false;
         }
 
+        Chest? chest = floor.GetChestAt(targetX, targetY);
+
+        if (chest != null && !chest.IsOpened)
+        {
+            _actionLog.Add("A closed chest blocks your path.");
+            return false;
+        }
+
         BeginMonsterRound(floor);
 
         Monster? targetMonster = floor.GetMonsterAt(targetX, targetY);
@@ -440,8 +466,7 @@ public class Game
         {
             int damage = _explorer.AttackMonster(targetMonster);
 
-            _actionLog.Add(
-                $"You hit {targetMonster.Name} for {damage} damage.");
+            _actionLog.Add($"You hit {targetMonster.Name} for {damage} damage.");
 
             // Give immediate visual feedback for the player's hit.
             _renderer.FlashMonsterHit(targetMonster);
@@ -452,10 +477,7 @@ public class Game
             }
             else
             {
-                _actionLog.Add(
-                    $"{targetMonster.Name} is defeated.");
-
-                floor.RemoveMonster(targetMonster);
+                HandleMonsterDeath(floor, targetMonster);
             }
 
             return true;
@@ -486,6 +508,93 @@ public class Game
                     _actionLog);
             }
         }
+
+        return true;
+    }
+
+    private void HandleMonsterDeath( DungeonFloor floor, Monster monster)
+    {
+        int deathX = monster.X;
+        int deathY = monster.Y;
+
+        List<Item> loot = monster.TakeAllLoot();
+
+        _actionLog.Add($"{monster.Name} is defeated.");
+
+        // Remove the monster first so its death tile becomes available.
+        floor.RemoveMonster(monster);
+
+        foreach (Item item in loot)
+        {
+            if (TryPlaceMonsterDrop(
+                floor,
+                item,
+                deathX,
+                deathY))
+            {
+                _actionLog.Add(
+                    $"{monster.Name} drops {item.Name}.");
+            }
+        }
+    }
+
+    private bool TryPlaceMonsterDrop( DungeonFloor floor, Item item, int originX, int originY)
+    {
+        int bestX = -1;
+        int bestY = -1;
+        int bestDistance = int.MaxValue;
+
+        for (int y = 0; y < floor.Height; y++)
+        {
+            for (int x = 0; x < floor.Width; x++)
+            {
+                Tile tile = floor.GetTile(x, y);
+
+                if (tile.Type != TileType.Floor)
+                {
+                    continue;
+                }
+
+                if (floor.GetMonsterAt(x, y) != null)
+                {
+                    continue;
+                }
+
+                if (floor.GetGroundItemAt(x, y) != null)
+                {
+                    continue;
+                }
+
+                if (x == _explorer.X &&
+                    y == _explorer.Y)
+                {
+                    continue;
+                }
+
+                int distance =
+                    Math.Abs(x - originX) +
+                    Math.Abs(y - originY);
+
+                if (distance >= bestDistance)
+                {
+                    continue;
+                }
+
+                bestDistance = distance;
+                bestX = x;
+                bestY = y;
+            }
+        }
+
+        if (bestX < 0 || bestY < 0)
+        {
+            return false;
+        }
+
+        floor.AddGroundItem(new GroundItem(
+            item,
+            bestX,
+            bestY));
 
         return true;
     }
@@ -705,9 +814,21 @@ public class Game
                     CurrentHealth = monster.CurrentHealth
                 };
 
+                foreach (Item item in monster.Loot)
+                {
+                    monsterData.LootItemIds.Add(item.Id);
+                }
+
                 if (monster is Slime slime)
                 {
                     monsterData.InactivityChance = slime.InactivityChance;
+                }
+
+                if (monster is Goblin goblin)
+                {
+                    monsterData.HomeRegionId = goblin.HomeRegionId;
+                    monsterData.LastSeenX = goblin.LastSeenX;
+                    monsterData.LastSeenY = goblin.LastSeenY;
                 }
 
                 floorData.Monsters.Add(monsterData);
@@ -721,6 +842,23 @@ public class Game
                     X = groundItem.X,
                     Y = groundItem.Y
                 });
+            }
+
+            foreach (Chest chest in floor.Chests)
+            {
+                ChestSaveData chestData = new()
+                {
+                    X = chest.X,
+                    Y = chest.Y,
+                    IsOpened = chest.IsOpened
+                };
+
+                foreach (Item item in chest.Items)
+                {
+                    chestData.ItemIds.Add(item.Id);
+                }
+
+                floorData.Chests.Add(chestData);
             }
 
             saveData.DungeonFloors.Add(floorData);
@@ -817,6 +955,7 @@ public class Game
             // by the state that existed when the game was saved.
             floor.ClearMonsters();
             floor.ClearGroundItems();
+            floor.ClearChests();
 
             foreach (TilePositionSaveData tileData in floorData.ExploredTiles)
             {
@@ -852,6 +991,20 @@ public class Game
                     item,
                     itemData.X,
                     itemData.Y));
+            }
+
+            foreach (ChestSaveData chestData in floorData.Chests)
+            {
+                Chest chest = new(chestData.X, chestData.Y);
+
+                foreach (string itemId in chestData.ItemIds)
+                {
+                    chest.AddItem(ItemFactory.Create(itemId));
+                }
+
+                chest.RestoreOpenedState(chestData.IsOpened);
+
+                floor.AddChest(chest);
             }
         }
 
@@ -910,12 +1063,88 @@ public class Game
                 monsterData.Y,
                 monsterData.InactivityChance ?? 0.40),
 
+            MonsterIds.Goblin => new Goblin(
+                monsterData.X,
+                monsterData.Y,
+                monsterData.HomeRegionId ?? -1),
+
             _ => throw new InvalidOperationException(
                 $"Unknown monster ID in save file: {monsterData.MonsterId}")
         };
 
+        if (monster is Goblin goblin)
+        {
+            goblin.RestoreLastSeenPosition(
+                monsterData.LastSeenX,
+                monsterData.LastSeenY);
+        }
+
+        foreach (string itemId in monsterData.LootItemIds)
+        {
+            monster.AddLoot(ItemFactory.Create(itemId));
+        }
+
         monster.RestoreHealth(monsterData.CurrentHealth);
 
         return monster;
+    }
+
+    private Chest? GetAdjacentClosedChest(DungeonFloor floor)
+    {
+        (int X, int Y)[] directions =
+        {
+        (0, -1),
+        (1, 0),
+        (0, 1),
+        (-1, 0)
+    };
+
+        foreach ((int X, int Y) direction in directions)
+        {
+            int x = _explorer.X + direction.X;
+            int y = _explorer.Y + direction.Y;
+
+            if (!floor.IsInsideBounds(x, y))
+            {
+                continue;
+            }
+
+            Chest? chest = floor.GetChestAt(x, y);
+
+            if (chest != null && !chest.IsOpened)
+            {
+                return chest;
+            }
+        }
+
+        return null;
+    }
+
+    private bool TryOpenAdjacentChest(DungeonFloor floor)
+    {
+        Chest? chest = GetAdjacentClosedChest(floor);
+
+        if (chest == null)
+        {
+            return false;
+        }
+
+        List<Item> contents = chest.Open();
+
+        _actionLog.Add("You open the chest.");
+
+        if (contents.Count == 0)
+        {
+            _actionLog.Add("The chest is empty.");
+            return true;
+        }
+
+        foreach (Item item in contents)
+        {
+            _explorer.AddItem(item);
+            _actionLog.Add($"You find {item.Name}.");
+        }
+
+        return true;
     }
 }

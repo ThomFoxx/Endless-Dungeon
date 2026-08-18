@@ -36,6 +36,8 @@ public class GlyphTestScreen
             WriteGlyph("Potion", "¡", "U+00A1", ConsoleColor.Magenta);
             WriteGlyph("Weapon", "†", "U+2020", ConsoleColor.White);
             WriteGlyph("Armor", "◈", "U+25C8", ConsoleColor.DarkYellow);
+            WriteGlyph("Closed Chest", "▣", "U+25A3", ConsoleColor.DarkYellow);
+            WriteGlyph("Opened Chest", "□", "U+25A1", ConsoleColor.DarkYellow);
 
             Console.WriteLine();
 

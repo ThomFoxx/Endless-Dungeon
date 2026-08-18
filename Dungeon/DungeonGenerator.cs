@@ -1,5 +1,6 @@
 ﻿using EndlessDungeon.Characters.Monsters;
 using EndlessDungeon.Items;
+using EndlessDungeon.Items.Loot;
 
 namespace EndlessDungeon.Dungeon;
 
@@ -23,14 +24,104 @@ public class DungeonGenerator
         GenerateWalls(floor);
         PlaceStairs(floor, rooms);
         PlaceTestSlime(floor, rooms, random);
-        PlaceTestItem(floor, rooms);
-        PlaceTestArmor(floor, rooms);
-        PlaceTestPotion(floor, rooms);
+        PlaceTestGoblin(floor, rooms, random);
+
+        PlaceChests(floor, rooms, random, 1);
+        PlaceScatteredLoot(floor, rooms, random, 3);
 
         return floor;
     }
 
-    private void PlaceTestSlime( DungeonFloor floor, List<Room> rooms, Random random)
+    private void PlaceScatteredLoot(DungeonFloor floor, List<Room> rooms, Random random, int itemCount)
+    {
+        int placedItems = 0;
+        int attemptsRemaining = itemCount * 20;
+
+        while (placedItems < itemCount &&
+               attemptsRemaining > 0)
+        {
+            attemptsRemaining--;
+
+            Item? item = LootTables.ScatteredBasic.Roll(random);
+
+            if (item == null)
+            {
+                continue;
+            }
+
+            if (TryPlaceGroundItem(
+                floor,
+                rooms,
+                random,
+                item))
+            {
+                placedItems++;
+            }
+        }
+    }
+
+    private bool TryPlaceGroundItem(DungeonFloor floor, List<Room> rooms, Random random, Item item)
+    {
+        if (rooms.Count <= 1)
+        {
+            return false;
+        }
+
+        const int MaxAttempts = 30;
+
+        for (int attempt = 0; attempt < MaxAttempts; attempt++)
+        {
+            // Skip the starting room for loose loot.
+            Room room = rooms[random.Next(1, rooms.Count)];
+
+            int x = random.Next(
+                room.X,
+                room.X + room.Width);
+
+            int y = random.Next(
+                room.Y,
+                room.Y + room.Height);
+
+            if (!floor.IsInsideBounds(x, y))
+            {
+                continue;
+            }
+
+            Tile tile = floor.GetTile(x, y);
+
+            // Don't replace stairs, portals, etc.
+            if (tile.Type != TileType.Floor)
+            {
+                continue;
+            }
+
+            if (floor.GetMonsterAt(x, y) != null)
+            {
+                continue;
+            }
+
+            if (floor.GetGroundItemAt(x, y) != null)
+            {
+                continue;
+            }
+
+            if (floor.GetChestAt(x, y) != null)
+            {
+                continue;
+            }
+
+            floor.AddGroundItem(new GroundItem(
+                item,
+                x,
+                y));
+
+            return true;
+        }
+
+        return false;
+    }
+
+    private void PlaceTestSlime(DungeonFloor floor, List<Room> rooms, Random random)
     {
         // Work backward through the rooms to favor
         // spawning away from the explorer's entrance.
@@ -41,7 +132,7 @@ public class DungeonGenerator
             int x = room.CenterX;
             int y = room.CenterY;
 
-            Tile tile = floor.GetTile( x, y);
+            Tile tile = floor.GetTile(x, y);
 
             if (tile.Type != TileType.Floor)
             {
@@ -61,35 +152,123 @@ public class DungeonGenerator
             // between 30% and 50% of doing nothing.
             double inactivityChance = 0.30 + random.NextDouble() * 0.20;
 
-            floor.AddMonster( new Slime( x, y, inactivityChance));
+            Slime slime = new(x, y, inactivityChance);
+
+            AddMonsterLoot(slime, LootTables.SlimeDrops, random);
+
+            floor.AddMonster(slime);
 
             return;
         }
     }
 
-    private void PlaceTestArmor(DungeonFloor floor, List<Room> rooms)
+    private void PlaceTestGoblin( DungeonFloor floor, List<Room> rooms, Random random)
     {
-        PlaceItemInAvailableRoom(
-            floor,
-            rooms,
-            (Armor)ItemFactory.Create(ItemIds.LeatherArmor),
-            startRoomIndex: 2);
+        // Search backward for a room that the Slime
+        // and dungeon features are not already occupying.
+        for (int i = rooms.Count - 1; i >= 1; i--)
+        {
+            Room room = rooms[i];
+
+            int x = room.CenterX;
+            int y = room.CenterY;
+
+            Tile tile = floor.GetTile(x, y);
+
+            if (tile.Type != TileType.Floor)
+            {
+                continue;
+            }
+
+            if (floor.GetMonsterAt(x, y) != null)
+            {
+                continue;
+            }
+
+            int distanceFromStart =
+                Math.Abs(x - floor.StartX) +
+                Math.Abs(y - floor.StartY);
+
+            if (distanceFromStart < 4)
+            {
+                continue;
+            }
+
+            Goblin goblin = new( x, y, room.Id);
+
+            AddMonsterLoot( goblin, LootTables.GoblinDrops, random);
+
+            floor.AddMonster(goblin);
+
+            return;
+        }
     }
 
-    private void PlaceTestPotion(DungeonFloor floor, List<Room> rooms)
+    private void PlaceChests(DungeonFloor floor, List<Room> rooms, Random random, int chestCount)
     {
-        PlaceItemInAvailableRoom(
-            floor,
-            rooms,
-            (HealingPotion)ItemFactory.Create(ItemIds.HealingPotion),
-            startRoomIndex: 3);
+        int placedChests = 0;
+        int attemptsRemaining = chestCount * 30;
+
+        while (placedChests < chestCount && attemptsRemaining > 0)
+        {
+            attemptsRemaining--;
+
+            if (rooms.Count <= 1)
+            {
+                return;
+            }
+
+            Room room = rooms[random.Next(1, rooms.Count)];
+
+            int x = random.Next(room.X, room.X + room.Width);
+            int y = random.Next(room.Y, room.Y + room.Height);
+
+            if (!floor.IsInsideBounds(x, y))
+            {
+                continue;
+            }
+
+            Tile tile = floor.GetTile(x, y);
+
+            if (tile.Type != TileType.Floor)
+            {
+                continue;
+            }
+
+            if (floor.GetMonsterAt(x, y) != null)
+            {
+                continue;
+            }
+
+            if (floor.GetGroundItemAt(x, y) != null)
+            {
+                continue;
+            }
+
+            if (floor.GetChestAt(x, y) != null)
+            {
+                continue;
+            }
+
+            Chest chest = new(x, y);
+
+            List<Item> contents = LootTables.BasicChest.Roll(random, 2);
+
+            foreach (Item item in contents)
+            {
+                chest.AddItem(item);
+            }
+
+            floor.AddChest(chest);
+            placedChests++;
+        }
     }
 
-    private void PlaceStairs( DungeonFloor floor, List<Room> rooms)
+    private void PlaceStairs(DungeonFloor floor, List<Room> rooms)
     {
         if (rooms.Count == 0)
         {
-            throw new InvalidOperationException( "Cannot place stairs on a floor with no rooms.");
+            throw new InvalidOperationException("Cannot place stairs on a floor with no rooms.");
         }
 
         Room startRoom = rooms[0];
@@ -105,10 +284,10 @@ public class DungeonGenerator
             floor.StairsUpX = startRoom.CenterX;
             floor.StairsUpY = startRoom.CenterY;
 
-            floor.SetTile( floor.StairsUpX, floor.StairsUpY, TileType.StairsUp);
+            floor.SetTile(floor.StairsUpX, floor.StairsUpY, TileType.StairsUp);
         }
 
-        Room downRoom = FindFarthestRoom( startRoom, rooms);
+        Room downRoom = FindFarthestRoom(startRoom, rooms);
 
         if (rooms.Count == 1)
         {
@@ -121,7 +300,7 @@ public class DungeonGenerator
             floor.StairsDownY = downRoom.CenterY;
         }
 
-        floor.SetTile( floor.StairsDownX, floor.StairsDownY, TileType.StairsDown);
+        floor.SetTile(floor.StairsDownX, floor.StairsDownY, TileType.StairsDown);
 
         // Every fifth floor provides an opportunity
         // to safely leave the dungeon.
@@ -131,7 +310,7 @@ public class DungeonGenerator
         }
     }
 
-    private void PlaceExitPortal( DungeonFloor floor)
+    private void PlaceExitPortal(DungeonFloor floor)
     {
         (int X, int Y)[] directions = { (1, 0), (-1, 0), (0, 1), (0, -1) };
 
@@ -141,12 +320,12 @@ public class DungeonGenerator
 
             int portalY = floor.StairsDownY + yOffset;
 
-            if (!floor.IsInsideBounds( portalX, portalY))
+            if (!floor.IsInsideBounds(portalX, portalY))
             {
                 continue;
             }
 
-            Tile tile = floor.GetTile( portalX, portalY);
+            Tile tile = floor.GetTile(portalX, portalY);
 
             // Only replace ordinary floor.
             if (tile.Type != TileType.Floor)
@@ -159,7 +338,7 @@ public class DungeonGenerator
             floor.ExitPortalX = portalX;
             floor.ExitPortalY = portalY;
 
-            floor.SetTile( portalX, portalY, TileType.ExitPortal);
+            floor.SetTile(portalX, portalY, TileType.ExitPortal);
 
             return;
         }
@@ -168,7 +347,7 @@ public class DungeonGenerator
             $"Could not place an exit portal beside the downstairs on Floor {floor.FloorNumber}.");
     }
 
-    private Room FindFarthestRoom( Room startingRoom, List<Room> rooms)
+    private Room FindFarthestRoom(Room startingRoom, List<Room> rooms)
     {
         Room farthestRoom = startingRoom;
         int greatestDistance = -1;
@@ -189,107 +368,33 @@ public class DungeonGenerator
         return farthestRoom;
     }
 
-    private void PlaceTestItem(DungeonFloor floor, List<Room> rooms)
-    {
-        if (rooms.Count < 2)
-        {
-            return;
-        }
-
-        // Start near the second room and look for an ordinary floor tile.
-        for (int i = 1; i < rooms.Count; i++)
-        {
-            Room room = rooms[i];
-
-            for (int y = room.Y; y < room.Y + room.Height; y++)
-            {
-                for (int x = room.X; x < room.X + room.Width; x++)
-                {
-                    if (floor.GetTile(x, y).Type != TileType.Floor)
-                    {
-                        continue;
-                    }
-
-                    if (floor.GetMonsterAt(x, y) != null)
-                    {
-                        continue;
-                    }
-
-                    Weapon ironSword = (Weapon)ItemFactory.Create(ItemIds.IronSword);
-
-                    floor.AddGroundItem(new GroundItem(ironSword, x, y));
-                    return;
-                }
-            }
-        }
-    }
-
-    private void PlaceItemInAvailableRoom(DungeonFloor floor, List<Room> rooms, Item item, int startRoomIndex)
-    {
-        if (rooms.Count == 0)
-        {
-            return;
-        }
-
-        int firstRoom = Math.Min(startRoomIndex, rooms.Count - 1);
-
-        for (int i = firstRoom; i < rooms.Count; i++)
-        {
-            Room room = rooms[i];
-
-            for (int y = room.Y; y < room.Y + room.Height; y++)
-            {
-                for (int x = room.X; x < room.X + room.Width; x++)
-                {
-                    if (floor.GetTile(x, y).Type != TileType.Floor)
-                    {
-                        continue;
-                    }
-
-                    if (floor.GetMonsterAt(x, y) != null)
-                    {
-                        continue;
-                    }
-
-                    if (floor.GetGroundItemAt(x, y) != null)
-                    {
-                        continue;
-                    }
-
-                    floor.AddGroundItem(new GroundItem(item, x, y));
-                    return;
-                }
-            }
-        }
-    }
-
     private List<Room> GenerateRooms(DungeonFloor floor, Random random)
     {
         List<Room> rooms = new();
 
         int attempts = 0;
 
-        while ( rooms.Count < TargetRoomCount && attempts < MaxPlacementAttempts)
+        while (rooms.Count < TargetRoomCount && attempts < MaxPlacementAttempts)
         {
             attempts++;
 
-            int width = random.Next( MinRoomSize, MaxRoomSize + 1);
+            int width = random.Next(MinRoomSize, MaxRoomSize + 1);
 
-            int height = random.Next( MinRoomSize, MaxRoomSize + 1);
+            int height = random.Next(MinRoomSize, MaxRoomSize + 1);
 
             // Leave space around the outer edge of the map.
-            int x = random.Next( 2, floor.Width - width - 1);
+            int x = random.Next(2, floor.Width - width - 1);
 
-            int y = random.Next( 2, floor.Height - height - 1);
+            int y = random.Next(2, floor.Height - height - 1);
 
-            Room newRoom = new( rooms.Count, x, y, width, height);
+            Room newRoom = new(rooms.Count, x, y, width, height);
 
-            if (OverlapsExistingRoom( newRoom, rooms))
+            if (OverlapsExistingRoom(newRoom, rooms))
             {
                 continue;
             }
 
-            CarveRoom( floor, newRoom);
+            CarveRoom(floor, newRoom);
 
             rooms.Add(newRoom);
             floor.AddRoom(newRoom);
@@ -313,11 +418,11 @@ public class DungeonGenerator
 
     private void CarveRoom(DungeonFloor floor, Room room)
     {
-        for ( int y = room.Y; y < room.Y + room.Height; y++)
+        for (int y = room.Y; y < room.Y + room.Height; y++)
         {
-            for ( int x = room.X; x < room.X + room.Width; x++)
+            for (int x = room.X; x < room.X + room.Width; x++)
             {
-                floor.SetTile( x, y, TileType.Floor);
+                floor.SetTile(x, y, TileType.Floor);
 
                 floor.GetTile(x, y).RegionId = room.Id;
             }
@@ -335,15 +440,15 @@ public class DungeonGenerator
 
             if (horizontalFirst)
             {
-                CarveHorizontalCorridor( floor, previousRoom.CenterX, currentRoom.CenterX, previousRoom.CenterY);
+                CarveHorizontalCorridor(floor, previousRoom.CenterX, currentRoom.CenterX, previousRoom.CenterY);
 
-                CarveVerticalCorridor( floor, previousRoom.CenterY, currentRoom.CenterY, currentRoom.CenterX);
+                CarveVerticalCorridor(floor, previousRoom.CenterY, currentRoom.CenterY, currentRoom.CenterX);
             }
             else
             {
-                CarveVerticalCorridor( floor, previousRoom.CenterY, currentRoom.CenterY, previousRoom.CenterX);
+                CarveVerticalCorridor(floor, previousRoom.CenterY, currentRoom.CenterY, previousRoom.CenterX);
 
-                CarveHorizontalCorridor( floor, previousRoom.CenterX, currentRoom.CenterX, currentRoom.CenterY);
+                CarveHorizontalCorridor(floor, previousRoom.CenterX, currentRoom.CenterX, currentRoom.CenterY);
             }
         }
     }
@@ -355,7 +460,7 @@ public class DungeonGenerator
 
         for (int x = minimumX; x <= maximumX; x++)
         {
-            floor.SetTile( x, y, TileType.Floor);
+            floor.SetTile(x, y, TileType.Floor);
         }
     }
 
@@ -366,7 +471,7 @@ public class DungeonGenerator
 
         for (int y = minimumY; y <= maximumY; y++)
         {
-            floor.SetTile( x, y, TileType.Floor);
+            floor.SetTile(x, y, TileType.Floor);
         }
     }
 
@@ -383,7 +488,7 @@ public class DungeonGenerator
                     continue;
                 }
 
-                CheckNeighborsForWalls( floor, x, y, wallPositions);
+                CheckNeighborsForWalls(floor, x, y, wallPositions);
             }
         }
 
@@ -391,7 +496,7 @@ public class DungeonGenerator
         {
             if (floor.GetTile(x, y).Type == TileType.Empty)
             {
-                floor.SetTile( x, y, TileType.Wall);
+                floor.SetTile(x, y, TileType.Wall);
             }
         }
     }
@@ -410,16 +515,26 @@ public class DungeonGenerator
                 int checkX = centerX + x;
                 int checkY = centerY + y;
 
-                if (!floor.IsInsideBounds( checkX, checkY))
+                if (!floor.IsInsideBounds(checkX, checkY))
                 {
                     continue;
                 }
 
-                if (floor.GetTile( checkX, checkY).Type == TileType.Empty)
+                if (floor.GetTile(checkX, checkY).Type == TileType.Empty)
                 {
-                    wallPositions.Add( (checkX, checkY));
+                    wallPositions.Add((checkX, checkY));
                 }
             }
+        }
+    }
+
+    private void AddMonsterLoot(Monster monster, LootTable lootTable, Random random)
+    {
+        Item? item = lootTable.Roll(random);
+
+        if (item != null)
+        {
+            monster.AddLoot(item);
         }
     }
 }

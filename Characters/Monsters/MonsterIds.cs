@@ -3,4 +3,5 @@
 public static class MonsterIds
 {
     public const string Slime = "slime";
+    public const string Goblin = "goblin";
 }

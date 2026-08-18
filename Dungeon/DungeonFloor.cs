@@ -9,6 +9,7 @@ public class DungeonFloor
     private readonly List<Room> _rooms = new();
     private readonly List<Monster> _monsters = new();
     private readonly List<GroundItem> _groundItems = new();
+    private readonly List<Chest> _chests = new();
 
     public int FloorNumber { get; }
     public int Seed { get; }
@@ -35,6 +36,8 @@ public class DungeonFloor
     public IReadOnlyList<Room> Rooms => _rooms;
     public IReadOnlyList<Monster> Monsters => _monsters;
     public IReadOnlyList<GroundItem> GroundItems => _groundItems;
+    public IReadOnlyList<Chest> Chests => _chests;
+    
 
     public DungeonFloor(int floorNumber, int width, int height, int seed)
     {
@@ -140,5 +143,28 @@ public class DungeonFloor
     public void ClearGroundItems()
     {
         _groundItems.Clear();
+    }
+
+    public void AddChest(Chest chest)
+    {
+        _chests.Add(chest);
+    }
+
+    public Chest? GetChestAt(int x, int y)
+    {
+        foreach (Chest chest in _chests)
+        {
+            if (chest.X == x && chest.Y == y)
+            {
+                return chest;
+            }
+        }
+
+        return null;
+    }
+
+    public void ClearChests()
+    {
+        _chests.Clear();
     }
 }

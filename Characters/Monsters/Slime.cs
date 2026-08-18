@@ -32,7 +32,7 @@ public class Slime : Monster
         int distance =
             GetDistanceToExplorer(explorer);
 
-        if (distance > AwarenessRange)
+        if (!CanDetectExplorer(floor, explorer, AwarenessRange))
         {
             return;
         }
