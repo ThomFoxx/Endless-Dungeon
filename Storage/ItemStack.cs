@@ -5,7 +5,7 @@ namespace Endless_Dungeon.Storage;
 public class ItemStack
 {
     private readonly List<Item> _items = new();
-
+    public IReadOnlyList<Item> Items => _items;
     public Item Item => _items[0];
     public int Quantity => _items.Count;
 

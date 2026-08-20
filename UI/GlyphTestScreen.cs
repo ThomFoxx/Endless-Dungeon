@@ -43,7 +43,7 @@ public class GlyphTestScreen
 
             WriteGlyph("Stairs Up", "▲", "U+25B2", ConsoleColor.White);
             WriteGlyph("Stairs Down", "▼", "U+25BC", ConsoleColor.White);
-            WriteGlyph("Exit Portal", "֍", "U+058D", ConsoleColor.Cyan);
+            WriteGlyph("Exit Portal", "Ѻ", "U+047A", ConsoleColor.Cyan);
 
             Console.WriteLine();
             Console.WriteLine("Candidate Explorer / Job Glyphs");

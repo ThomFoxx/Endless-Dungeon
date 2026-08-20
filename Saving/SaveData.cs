@@ -2,16 +2,19 @@
 
 public class SaveData
 {
-    public int Version { get; set; } = 3;
+    public int Version { get; set; } = 4;
 
     public ExplorerSaveData Explorer { get; set; } = new();
     public List<StorageStackSaveData> Storage { get; set; } = new();
     public List<HonorRecordSaveData> HonorBoard { get; set; } = new();
     public List<DungeonFloorSaveData> DungeonFloors { get; set; } = new();
+    public long NextExplorerId { get; set; } = 1;
 }
 
 public class ExplorerSaveData
 {
+    public long Id { get; set; }
+
     public string Name { get; set; } = string.Empty;
     public int DungeonSeed { get; set; }
 
@@ -20,16 +23,15 @@ public class ExplorerSaveData
     public int CurrentHealth { get; set; }
     public int DeepestFloorReached { get; set; }
 
-    public string? EquippedWeaponId { get; set; }
-    public string? EquippedArmorId { get; set; }
+    public ItemSaveData? EquippedWeapon { get; set; }
+    public ItemSaveData? EquippedArmor { get; set; }
 
-    public List<string> InventoryItemIds { get; set; } = new();
+    public List<ItemSaveData> InventoryItems { get; set; } = new();
 }
 
 public class StorageStackSaveData
 {
-    public string ItemId { get; set; } = string.Empty;
-    public int Quantity { get; set; }
+    public List<ItemSaveData> Items { get; set; } = new();
 }
 
 public class HonorRecordSaveData
@@ -70,15 +72,21 @@ public class MonsterSaveData
 
     public int? LastSeenX { get; set; }
     public int? LastSeenY { get; set; }
-    public List<string> LootItemIds { get; set; } = new();
+    public List<ItemSaveData> LootItems { get; set; } = new();
 }
 
 public class GroundItemSaveData
 {
-    public string ItemId { get; set; } = string.Empty;
+    public ItemSaveData Item { get; set; } = new();
 
     public int X { get; set; }
     public int Y { get; set; }
+}
+
+public class ItemSaveData
+{
+    public string ItemId { get; set; } = string.Empty;
+    public long? OriginalExplorerId { get; set; }
 }
 
 public class ChestSaveData
@@ -88,5 +96,5 @@ public class ChestSaveData
 
     public bool IsOpened { get; set; }
 
-    public List<string> ItemIds { get; set; } = new();
+    public List<ItemSaveData> Items { get; set; } = new();
 }

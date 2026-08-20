@@ -9,6 +9,7 @@ public class Explorer
 
     public string Name { get; set; }
     public string Glyph { get; set; } = "₽";
+    public long Id { get; }
 
     public int DungeonSeed { get; private set; }
 
@@ -37,8 +38,9 @@ public class Explorer
 
     public bool IsAlive => CurrentHealth > 0;
 
-    public Explorer(string name, int dungeonSeed)
+    public Explorer(long id, string name, int dungeonSeed)
     {
+        Id = id;
         Name = name;
         DungeonSeed = dungeonSeed;
     }
@@ -76,6 +78,7 @@ public class Explorer
 
     public void AddItem(Item item)
     {
+        item.AssignOriginalExplorer(Id);
         _inventory.Add(item);
     }
 
@@ -86,6 +89,7 @@ public class Explorer
 
     public void EquipStartingWeapon(Weapon weapon)
     {
+        weapon.AssignOriginalExplorer(Id);
         EquippedWeapon = weapon;
     }
 

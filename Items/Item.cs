@@ -3,6 +3,7 @@
 public abstract class Item
 {
     public string Id { get; }
+    public long? OriginalExplorerId { get; private set; }
     public string Name { get; }
     public string Glyph { get; }
     public ConsoleColor Color { get; }
@@ -17,5 +18,15 @@ public abstract class Item
         Glyph = glyph;
         Color = color;
         Description = description;
+    }
+
+    public void AssignOriginalExplorer(long explorerId)
+    {
+        OriginalExplorerId ??= explorerId;
+    }
+
+    public void RestoreOriginalExplorerId(long? explorerId)
+    {
+        OriginalExplorerId = explorerId;
     }
 }

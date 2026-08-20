@@ -6,28 +6,22 @@ namespace EndlessDungeon.Dungeon;
 
 public class DungeonGenerator
 {
-    private const int MinRoomSize = 3;
-    private const int MaxRoomSize = 5;
-
-    private const int TargetRoomCount = 6;
     private const int MaxPlacementAttempts = 100;
 
-    public DungeonFloor GenerateFloor(int floorNumber, int width, int height, int seed)
+    public DungeonFloor GenerateFloor(int floorNumber, int seed, FloorProfile profile)
     {
         Random random = new(seed);
 
-        DungeonFloor floor = new(floorNumber, width, height, seed);
+        DungeonFloor floor = new(floorNumber, profile.Width, profile.Height, seed);
 
-        List<Room> rooms = GenerateRooms(floor, random);
+        List<Room> rooms = GenerateRooms(floor, random, profile);
 
         ConnectRooms(floor, rooms, random);
         GenerateWalls(floor);
         PlaceStairs(floor, rooms);
-        PlaceTestSlime(floor, rooms, random);
-        PlaceTestGoblin(floor, rooms, random);
-
-        PlaceChests(floor, rooms, random, 1);
-        PlaceScatteredLoot(floor, rooms, random, 3);
+        PlaceMonsters(floor, rooms, random, profile);
+        PlaceChests(floor, rooms, random, profile.ChestCount);
+        PlaceScatteredLoot(floor, rooms, random, profile.ScatteredLootCount);
 
         return floor;
     }
@@ -121,86 +115,98 @@ public class DungeonGenerator
         return false;
     }
 
-    private void PlaceTestSlime(DungeonFloor floor, List<Room> rooms, Random random)
+    private void PlaceMonsters(DungeonFloor floor, List<Room> rooms, Random random, FloorProfile profile)
     {
-        // Work backward through the rooms to favor
-        // spawning away from the explorer's entrance.
-        for (int i = rooms.Count - 1; i >= 1; i--)
+        int placedMonsters = 0;
+        int attemptsRemaining = profile.MonsterCount * 30;
+
+        while (placedMonsters < profile.MonsterCount && attemptsRemaining > 0)
         {
-            Room room = rooms[i];
+            attemptsRemaining--;
 
-            int x = room.CenterX;
-            int y = room.CenterY;
+            if (rooms.Count <= 1)
+            {
+                return;
+            }
 
-            Tile tile = floor.GetTile(x, y);
+            Room room = rooms[random.Next(1, rooms.Count)];
 
-            if (tile.Type != TileType.Floor)
+            int x = random.Next(room.X, room.X + room.Width);
+            int y = random.Next(room.Y, room.Y + room.Height);
+
+            if (!CanPlaceMonster(floor, x, y))
             {
                 continue;
             }
 
-            int distanceFromStart =
-                Math.Abs(x - floor.StartX) +
-                Math.Abs(y - floor.StartY);
+            MonsterThreatTier tier = profile.RollThreatTier(random);
+            string monsterId = MonsterSpawnTables.Roll(tier, random);
 
-            if (distanceFromStart < 4)
-            {
-                continue;
-            }
+            Monster monster = CreateGeneratedMonster(monsterId, x, y, room.Id, random);
+            AddGeneratedMonsterLoot(monster, random);
 
-            // Every Slime gets its own permanent chance
-            // between 30% and 50% of doing nothing.
-            double inactivityChance = 0.30 + random.NextDouble() * 0.20;
-
-            Slime slime = new(x, y, inactivityChance);
-
-            AddMonsterLoot(slime, LootTables.SlimeDrops, random);
-
-            floor.AddMonster(slime);
-
-            return;
+            floor.AddMonster(monster);
+            placedMonsters++;
         }
     }
 
-    private void PlaceTestGoblin( DungeonFloor floor, List<Room> rooms, Random random)
+    private bool CanPlaceMonster(DungeonFloor floor, int x, int y)
     {
-        // Search backward for a room that the Slime
-        // and dungeon features are not already occupying.
-        for (int i = rooms.Count - 1; i >= 1; i--)
+        if (!floor.IsInsideBounds(x, y))
         {
-            Room room = rooms[i];
+            return false;
+        }
 
-            int x = room.CenterX;
-            int y = room.CenterY;
+        if (floor.GetTile(x, y).Type != TileType.Floor)
+        {
+            return false;
+        }
 
-            Tile tile = floor.GetTile(x, y);
+        if (floor.GetMonsterAt(x, y) != null)
+        {
+            return false;
+        }
 
-            if (tile.Type != TileType.Floor)
-            {
-                continue;
-            }
+        if (floor.GetGroundItemAt(x, y) != null)
+        {
+            return false;
+        }
 
-            if (floor.GetMonsterAt(x, y) != null)
-            {
-                continue;
-            }
+        if (floor.GetChestAt(x, y) != null)
+        {
+            return false;
+        }
 
-            int distanceFromStart =
-                Math.Abs(x - floor.StartX) +
-                Math.Abs(y - floor.StartY);
+        int distanceFromStart = Math.Abs(x - floor.StartX) + Math.Abs(y - floor.StartY);
 
-            if (distanceFromStart < 4)
-            {
-                continue;
-            }
+        return distanceFromStart >= 4;
+    }
 
-            Goblin goblin = new( x, y, room.Id);
+    private Monster CreateGeneratedMonster(string monsterId, int x, int y, int roomId, Random random)
+    {
+        return monsterId switch
+        {
+            MonsterIds.Slime => new Slime(x, y, 0.30 + random.NextDouble() * 0.20),
+            MonsterIds.Goblin => new Goblin(x, y, roomId),
 
-            AddMonsterLoot( goblin, LootTables.GoblinDrops, random);
+            _ => throw new InvalidOperationException($"Unknown generated monster ID: {monsterId}")
+        };
+    }
 
-            floor.AddMonster(goblin);
+    private void AddGeneratedMonsterLoot(Monster monster, Random random)
+    {
+        LootTable? lootTable = LootTables.GetMonsterDrops(monster.Id);
 
+        if (lootTable == null)
+        {
             return;
+        }
+
+        Item? item = lootTable.Roll(random);
+
+        if (item != null)
+        {
+            monster.AddLoot(item);
         }
     }
 
@@ -368,19 +374,18 @@ public class DungeonGenerator
         return farthestRoom;
     }
 
-    private List<Room> GenerateRooms(DungeonFloor floor, Random random)
+    private List<Room> GenerateRooms(DungeonFloor floor, Random random, FloorProfile profile)
     {
         List<Room> rooms = new();
 
         int attempts = 0;
 
-        while (rooms.Count < TargetRoomCount && attempts < MaxPlacementAttempts)
+        while (rooms.Count < profile.TargetRoomCount && attempts < MaxPlacementAttempts)
         {
             attempts++;
 
-            int width = random.Next(MinRoomSize, MaxRoomSize + 1);
-
-            int height = random.Next(MinRoomSize, MaxRoomSize + 1);
+            int width = random.Next(profile.MinRoomSize, profile.MaxRoomSize + 1);
+            int height = random.Next(profile.MinRoomSize, profile.MaxRoomSize + 1);
 
             // Leave space around the outer edge of the map.
             int x = random.Next(2, floor.Width - width - 1);

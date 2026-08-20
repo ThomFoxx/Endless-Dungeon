@@ -29,6 +29,7 @@ public class Game
 
     private bool _isRunning = true;
     private bool _saveOverwriteAcknowledged;
+    private long _nextExplorerId = 1;
 
     public Game()
     {
@@ -51,15 +52,14 @@ public class Game
 
     private Explorer CreateNewExplorer()
     {
-        int explorerNumber = _honorBoard.Records.Count + 1;
-        string name = $"Explorer {explorerNumber}";
+        long explorerId = _nextExplorerId++;
 
-        int dungeonSeed = Random.Shared.Next(int.MinValue, int.MaxValue);
+        string name = $"Explorer {explorerId}";
+        int dungeonSeed = Random.Shared.Next();
 
-        Explorer explorer = new(name, dungeonSeed);
+        Explorer explorer = new(explorerId, name, dungeonSeed);
 
         Weapon chippedSword = (Weapon)ItemFactory.Create(ItemIds.ChippedSword);
-
         explorer.EquipStartingWeapon(chippedSword);
 
         return explorer;
@@ -512,7 +512,7 @@ public class Game
         return true;
     }
 
-    private void HandleMonsterDeath( DungeonFloor floor, Monster monster)
+    private void HandleMonsterDeath(DungeonFloor floor, Monster monster)
     {
         int deathX = monster.X;
         int deathY = monster.Y;
@@ -538,7 +538,7 @@ public class Game
         }
     }
 
-    private bool TryPlaceMonsterDrop( DungeonFloor floor, Item item, int originX, int originY)
+    private bool TryPlaceMonsterDrop(DungeonFloor floor, Item item, int originX, int originY)
     {
         int bestX = -1;
         int bestY = -1;
@@ -599,7 +599,7 @@ public class Game
         return true;
     }
 
-    private void BeginMonsterRound( DungeonFloor floor)
+    private void BeginMonsterRound(DungeonFloor floor)
     {
         foreach (Monster monster in floor.Monsters)
         {
@@ -607,7 +607,7 @@ public class Game
         }
     }
 
-    private void RunMonsterTurns( DungeonFloor floor)
+    private void RunMonsterTurns(DungeonFloor floor)
     {
         foreach (Monster monster in floor.Monsters.ToList())
         {
@@ -741,30 +741,44 @@ public class Game
 
     private SaveData CreateSaveData()
     {
-        SaveData saveData = new();
+        SaveData saveData = new()
+        {
+            NextExplorerId = _nextExplorerId
+        };
 
         saveData.Explorer = new ExplorerSaveData
         {
+            Id = _explorer.Id,
             Name = _explorer.Name,
             DungeonSeed = _explorer.DungeonSeed,
             Level = _explorer.Level,
             Experience = _explorer.Experience,
             CurrentHealth = _explorer.CurrentHealth,
             DeepestFloorReached = _explorer.DeepestFloorReached,
-            EquippedWeaponId = _explorer.EquippedWeapon?.Id,
-            EquippedArmorId = _explorer.EquippedArmor?.Id,
-            InventoryItemIds = _explorer.Inventory
-                .Select(item => item.Id)
+
+            EquippedWeapon = _explorer.EquippedWeapon != null
+                ? CreateItemSaveData(_explorer.EquippedWeapon)
+                : null,
+
+            EquippedArmor = _explorer.EquippedArmor != null
+                ? CreateItemSaveData(_explorer.EquippedArmor)
+                : null,
+
+            InventoryItems = _explorer.Inventory
+                .Select(CreateItemSaveData)
                 .ToList()
         };
 
         foreach (ItemStack stack in _storageChest.Stacks)
         {
-            saveData.Storage.Add(new StorageStackSaveData
+            StorageStackSaveData stackData = new();
+
+            foreach (Item item in stack.Items)
             {
-                ItemId = stack.Item.Id,
-                Quantity = stack.Quantity
-            });
+                stackData.Items.Add(CreateItemSaveData(item));
+            }
+
+            saveData.Storage.Add(stackData);
         }
 
         foreach (HonorRecord record in _honorBoard.Records)
@@ -816,7 +830,7 @@ public class Game
 
                 foreach (Item item in monster.Loot)
                 {
-                    monsterData.LootItemIds.Add(item.Id);
+                    monsterData.LootItems.Add(CreateItemSaveData(item));
                 }
 
                 if (monster is Slime slime)
@@ -838,7 +852,7 @@ public class Game
             {
                 floorData.GroundItems.Add(new GroundItemSaveData
                 {
-                    ItemId = groundItem.Item.Id,
+                    Item = CreateItemSaveData(groundItem.Item),
                     X = groundItem.X,
                     Y = groundItem.Y
                 });
@@ -855,7 +869,7 @@ public class Game
 
                 foreach (Item item in chest.Items)
                 {
-                    chestData.ItemIds.Add(item.Id);
+                    chestData.Items.Add(CreateItemSaveData(item));
                 }
 
                 floorData.Chests.Add(chestData);
@@ -888,9 +902,8 @@ public class Game
 
         ExplorerSaveData explorerData = saveData.Explorer;
 
-        Explorer explorer = new(
-            explorerData.Name,
-            explorerData.DungeonSeed);
+        Explorer explorer = new(explorerData.Id, explorerData.Name, explorerData.DungeonSeed);
+        _nextExplorerId = Math.Max(saveData.NextExplorerId, explorer.Id + 1);
 
         explorer.RestoreProgress(
             explorerData.Level,
@@ -898,9 +911,9 @@ public class Game
             explorerData.CurrentHealth,
             explorerData.DeepestFloorReached);
 
-        if (explorerData.EquippedWeaponId != null)
+        if (explorerData.EquippedWeapon != null)
         {
-            Item item = ItemFactory.Create(explorerData.EquippedWeaponId);
+            Item item = CreateItemFromSave(explorerData.EquippedWeapon);
 
             if (item is Weapon weapon)
             {
@@ -908,9 +921,9 @@ public class Game
             }
         }
 
-        if (explorerData.EquippedArmorId != null)
+        if (explorerData.EquippedArmor != null)
         {
-            Item item = ItemFactory.Create(explorerData.EquippedArmorId);
+            Item item = CreateItemFromSave(explorerData.EquippedArmor);
 
             if (item is Armor armor)
             {
@@ -918,18 +931,18 @@ public class Game
             }
         }
 
-        foreach (string itemId in explorerData.InventoryItemIds)
+        foreach (ItemSaveData itemData in explorerData.InventoryItems)
         {
-            explorer.AddItem(ItemFactory.Create(itemId));
+            explorer.AddItem(CreateItemFromSave(itemData));
         }
 
         _storageChest.Clear();
 
         foreach (StorageStackSaveData stackData in saveData.Storage)
         {
-            for (int i = 0; i < stackData.Quantity; i++)
+            foreach (ItemSaveData itemData in stackData.Items)
             {
-                _storageChest.AddItem(ItemFactory.Create(stackData.ItemId));
+                _storageChest.AddItem(CreateItemFromSave(itemData));
             }
         }
 
@@ -985,21 +998,18 @@ public class Game
                     continue;
                 }
 
-                Item item = ItemFactory.Create(itemData.ItemId);
+                Item item = CreateItemFromSave(itemData.Item);
 
-                floor.AddGroundItem(new GroundItem(
-                    item,
-                    itemData.X,
-                    itemData.Y));
+                floor.AddGroundItem(new GroundItem(item, itemData.X, itemData.Y));
             }
 
             foreach (ChestSaveData chestData in floorData.Chests)
             {
                 Chest chest = new(chestData.X, chestData.Y);
 
-                foreach (string itemId in chestData.ItemIds)
+                foreach (ItemSaveData itemData in chestData.Items)
                 {
-                    chest.AddItem(ItemFactory.Create(itemId));
+                    chest.AddItem(CreateItemFromSave(itemData));
                 }
 
                 chest.RestoreOpenedState(chestData.IsOpened);
@@ -1079,9 +1089,9 @@ public class Game
                 monsterData.LastSeenY);
         }
 
-        foreach (string itemId in monsterData.LootItemIds)
+        foreach (ItemSaveData itemData in monsterData.LootItems)
         {
-            monster.AddLoot(ItemFactory.Create(itemId));
+            monster.AddLoot(CreateItemFromSave(itemData));
         }
 
         monster.RestoreHealth(monsterData.CurrentHealth);
@@ -1146,5 +1156,22 @@ public class Game
         }
 
         return true;
+    }
+
+    private ItemSaveData CreateItemSaveData(Item item)
+    {
+        return new ItemSaveData
+        {
+            ItemId = item.Id,
+            OriginalExplorerId = item.OriginalExplorerId
+        };
+    }
+
+    private Item CreateItemFromSave(ItemSaveData itemData)
+    {
+        Item item = ItemFactory.Create(itemData.ItemId);
+        item.RestoreOriginalExplorerId(itemData.OriginalExplorerId);
+
+        return item;
     }
 }

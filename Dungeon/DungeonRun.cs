@@ -2,9 +2,6 @@
 
 public class DungeonRun
 {
-    private const int TestFloorWidth = 20;
-    private const int TestFloorHeight = 20;
-
     private readonly DungeonGenerator _generator;
     private readonly Dictionary<int, DungeonFloor> _floors;
 
@@ -54,25 +51,18 @@ public class DungeonRun
     private DungeonFloor GetFloor(int floorNumber)
     {
         // Return the existing floor if we've already visited it.
-        if (_floors.TryGetValue(
-            floorNumber,
-            out DungeonFloor? existingFloor))
+        if (_floors.TryGetValue(floorNumber, out DungeonFloor? existingFloor))
         {
             return existingFloor;
         }
 
-        int floorSeed = unchecked(
-            ExplorerSeed + floorNumber - 1);
+        int floorSeed = unchecked(ExplorerSeed + floorNumber - 1);
 
-        DungeonFloor newFloor = _generator.GenerateFloor(
-            floorNumber,
-            TestFloorWidth,
-            TestFloorHeight,
-            floorSeed);
+        FloorProfile profile = FloorProfile.Create(floorNumber);
 
-        _floors.Add(
-            floorNumber,
-            newFloor);
+        DungeonFloor newFloor = _generator.GenerateFloor(floorNumber, floorSeed, profile);
+
+        _floors.Add(floorNumber, newFloor);
 
         return newFloor;
     }
